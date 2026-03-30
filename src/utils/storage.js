@@ -1,157 +1,912 @@
+import { COURSES as BASE_COURSES } from '../data/courses';
+import {
+  DEFAULT_CERTIFICATE_TEMPLATE,
+  isCertificateTemplate,
+} from './certificateTemplates';
+import { COURSE_PAYMENT_DETAILS } from './paymentConfig';
+
 // ─────────────────────────────────────────────
 // localStorage Helpers — Ali Nawaz Academy
-// All data persistence goes through these utils
+// Demo authentication + per-user learning data
 // ─────────────────────────────────────────────
 
 const PREFIX = 'ali_nawaz_';
+const DEFAULT_VIDEO_ID = 'dQw4w9WgXcQ';
+const DEFAULT_THUMBNAIL = 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80';
+export const LESSON_WATCH_THRESHOLD = 70;
+const DEFAULT_FREE_PREVIEW_LESSONS = 3;
+const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
+
+const ROLE_ORDER = {
+  Student: 0,
+  Teacher: 1,
+  Admin: 2,
+  'Super Admin': 3,
+};
 
 const key = (k) => `${PREFIX}${k}`;
+const normalizeEmail = (email) => email.trim().toLowerCase();
+const normalizeTotalLessons = (value, fallback = 1) => Math.max(1, Number.parseInt(value, 10) || fallback || 1);
+const normalizePricePkr = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
+const normalizeFreePreviewLessons = (value, totalLessons, fallback = DEFAULT_FREE_PREVIEW_LESSONS) => {
+  const parsed = Number.parseInt(value, 10);
+  const normalized = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.max(1, Math.min(totalLessons || 1, normalized));
+};
+const normalizeProgressPercent = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+};
+const normalizeProgressSeconds = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, numeric);
+};
+const normalizeSignatureImage = (value) => (
+  typeof value === 'string' && value.startsWith(PNG_DATA_URL_PREFIX) ? value : ''
+);
 
-// ── Generic get/set ──────────────────────────
+const DEMO_USERS = [
+  {
+    id: 'demo-student',
+    name: 'Amina Yusuf',
+    email: 'student@alinawaz.academy',
+    password: 'Student123!',
+    role: 'Student',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    isDemo: true,
+    blocked: false,
+  },
+  {
+    id: 'demo-teacher',
+    name: 'Ustadh Kareem Ahmad',
+    email: 'teacher@alinawaz.academy',
+    password: 'Teacher123!',
+    role: 'Teacher',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    isDemo: true,
+    blocked: false,
+  },
+  {
+    id: 'demo-admin',
+    name: 'Maryam Siddiqui',
+    email: 'admin@alinawaz.academy',
+    password: 'Admin123!',
+    role: 'Admin',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    isDemo: true,
+    blocked: false,
+  },
+  {
+    id: 'demo-super-admin',
+    name: 'Ali Nawaz Owner',
+    email: 'superadmin@alinawaz.academy',
+    password: 'SuperAdmin123!',
+    role: 'Super Admin',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    isDemo: true,
+    blocked: false,
+  },
+];
+
+export const DEMO_ACCOUNTS = DEMO_USERS.map(({ id, name, email, password, role }) => ({
+  id,
+  name,
+  email,
+  password,
+  role,
+}));
+
 export const getItem = (k, fallback = null) => {
   try {
     const val = localStorage.getItem(key(k));
     return val ? JSON.parse(val) : fallback;
-  } catch { return fallback; }
+  } catch {
+    return fallback;
+  }
 };
 
 export const setItem = (k, value) => {
-  try { localStorage.setItem(key(k), JSON.stringify(value)); } catch (e) { console.error('Storage error:', e); }
+  try {
+    localStorage.setItem(key(k), JSON.stringify(value));
+    return true;
+  } catch (e) {
+    console.error('Storage error:', e);
+    return false;
+  }
 };
 
 export const removeItem = (k) => {
-  try { localStorage.removeItem(key(k)); } catch (e) { console.error('Storage error:', e); }
+  try {
+    localStorage.removeItem(key(k));
+  } catch (e) {
+    console.error('Storage error:', e);
+  }
 };
 
-// ── Role ─────────────────────────────────────
-export const getRole = () => getItem('role', 'Student');
-export const setRole = (role) => setItem('role', role);
+const mergeDemoUsers = (users = []) => {
+  const map = new Map();
 
-// ── Student Name ─────────────────────────────
-export const getStudentName = () => getItem('student_name', 'Abdullah');
-export const setStudentName = (name) => setItem('student_name', name);
+  DEMO_USERS.forEach((user) => {
+    map.set(normalizeEmail(user.email), user);
+  });
 
-// ── Enrollments ──────────────────────────────
-export const getEnrollments = () => getItem('enrollments', {});
+  users.forEach((user) => {
+    map.set(normalizeEmail(user.email), user);
+  });
+
+  return [...map.values()];
+};
+
+const persistUsers = (users) => {
+  setItem('users', users);
+  return users;
+};
+
+export const getUsers = () => {
+  const storedUsers = getItem('users', []);
+  const mergedUsers = mergeDemoUsers(storedUsers);
+
+  if (mergedUsers.length !== storedUsers.length) {
+    persistUsers(mergedUsers);
+  }
+
+  return mergedUsers;
+};
+
+export const getCurrentSession = () => getItem('session', null);
+
+export const getCurrentUser = () => {
+  const session = getCurrentSession();
+  if (!session?.userId) return null;
+  return getUsers().find((user) => user.id === session.userId) || null;
+};
+
+const getUserItemById = (userId, k, fallback = null) => getItem(`user_${userId}_${k}`, fallback);
+const setUserItemById = (userId, k, value) => setItem(`user_${userId}_${k}`, value);
+
+const userScopedKey = (k) => {
+  const user = getCurrentUser();
+  return user ? `user_${user.id}_${k}` : `guest_${k}`;
+};
+
+const getUserItem = (k, fallback = null) => getItem(userScopedKey(k), fallback);
+const setUserItem = (k, value) => setItem(userScopedKey(k), value);
+
+const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+const extractVideoId = (value = '') => {
+  if (!value) return DEFAULT_VIDEO_ID;
+
+  const watchMatch = value.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (watchMatch) return watchMatch[1];
+
+  const shortMatch = value.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (shortMatch) return shortMatch[1];
+
+  return DEFAULT_VIDEO_ID;
+};
+
+const buildLessons = ({ title, totalLessons, playlistUrl, existingLessons = [] }) => {
+  const target = normalizeTotalLessons(totalLessons, existingLessons.length || 1);
+  const videoId = extractVideoId(playlistUrl || existingLessons[0]?.videoId);
+  const lessons = existingLessons.slice(0, target);
+
+  while (lessons.length < target) {
+    const number = lessons.length + 1;
+    lessons.push({
+      id: `${slugify(title || 'course')}-lesson-${number}`,
+      title: `Lesson ${number}`,
+      videoId,
+      duration: '45:00',
+      description: `Lesson ${number} for ${title || 'this course'}.`,
+    });
+  }
+
+  return lessons;
+};
+
+const hydrateCourse = (course) => {
+  const totalLessons = normalizeTotalLessons(course.totalLessons, course.lessons?.length || 1);
+  const lessons = buildLessons({
+    title: course.title,
+    totalLessons,
+    playlistUrl: course.playlistUrl,
+    existingLessons: Array.isArray(course.lessons) ? course.lessons : [],
+  });
+
+  return {
+    ...course,
+    totalLessons,
+    lessons,
+    requiresPayment: Boolean(course.requiresPayment),
+    freePreviewLessons: course.requiresPayment
+      ? normalizeFreePreviewLessons(course.freePreviewLessons, totalLessons)
+      : totalLessons,
+    pricePKR: normalizePricePkr(course.pricePKR),
+    currency: course.currency || 'PKR',
+    isShortCourse: Boolean(course.isShortCourse),
+    thumbnail: course.thumbnail || DEFAULT_THUMBNAIL,
+  };
+};
+
+const getCourseOverrides = () => getItem('platform_course_overrides', {});
+const setCourseOverrides = (overrides) => setItem('platform_course_overrides', overrides);
+const getCustomCourses = () => getItem('platform_custom_courses', []).map(hydrateCourse);
+const setCustomCourses = (courses) => setItem('platform_custom_courses', courses.map(hydrateCourse));
+const DEFAULT_PLATFORM_SETTINGS = {
+  certificateTemplate: DEFAULT_CERTIFICATE_TEMPLATE,
+  certificateSignature: '',
+};
+
+const normalizePlatformSettings = (settings = {}) => ({
+  certificateTemplate: isCertificateTemplate(settings.certificateTemplate)
+    ? settings.certificateTemplate
+    : DEFAULT_PLATFORM_SETTINGS.certificateTemplate,
+  certificateSignature: normalizeSignatureImage(settings.certificateSignature),
+});
+
+export const getPlatformSettings = () => {
+  const storedSettings = getItem('platform_settings', null);
+  const normalizedSettings = normalizePlatformSettings(storedSettings || {});
+
+  if (!storedSettings || storedSettings.certificateTemplate !== normalizedSettings.certificateTemplate) {
+    setItem('platform_settings', normalizedSettings);
+  }
+
+  return normalizedSettings;
+};
+
+export const getManagedCourses = () => {
+  const overrides = getCourseOverrides();
+  const baseCourses = BASE_COURSES.map((course) => hydrateCourse({ ...course, ...(overrides[course.id] || {}) }));
+  return [...baseCourses, ...getCustomCourses()];
+};
+
+export const findManagedCourse = (courseId) => getManagedCourses().find((course) => course.id === courseId) || null;
+
+const getActor = () => getCurrentUser();
+const isPrivileged = (role) => ROLE_ORDER[role] >= ROLE_ORDER.Admin;
+const canManageRole = (actorRole, targetRole) => {
+  if (actorRole === 'Super Admin') return true;
+  if (actorRole === 'Admin') return ROLE_ORDER[targetRole] < ROLE_ORDER.Admin;
+  return false;
+};
+
+export const getAssignableRoles = () => {
+  const actor = getActor();
+  if (!actor) return ['Student'];
+  if (actor.role === 'Super Admin') return ['Student', 'Teacher', 'Admin', 'Super Admin'];
+  if (actor.role === 'Admin') return ['Student', 'Teacher', 'Admin'];
+  return ['Student'];
+};
+
+export const updatePlatformSettings = (updates) => {
+  const actor = getActor();
+
+  if (!actor || !isPrivileged(actor.role)) {
+    return { ok: false, message: 'You do not have permission to update platform settings.' };
+  }
+
+  if (updates.certificateTemplate && !isCertificateTemplate(updates.certificateTemplate)) {
+    return { ok: false, message: 'Please choose a valid certificate template.' };
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(updates, 'certificateSignature')
+    && updates.certificateSignature !== ''
+    && !normalizeSignatureImage(updates.certificateSignature)
+  ) {
+    return { ok: false, message: 'Please upload a valid PNG signature.' };
+  }
+
+  const settings = normalizePlatformSettings({
+    ...getPlatformSettings(),
+    ...updates,
+  });
+
+  const saved = setItem('platform_settings', settings);
+  if (!saved) {
+    return { ok: false, message: 'The certificate settings could not be saved. Try a smaller signature image.' };
+  }
+
+  return { ok: true, settings };
+};
+
+export const loginUser = (email, password) => {
+  const normalizedEmail = normalizeEmail(email);
+  const user = getUsers().find((entry) => normalizeEmail(entry.email) === normalizedEmail);
+
+  if (!user) {
+    return { ok: false, message: 'No account was found for that email address.' };
+  }
+
+  if (user.blocked) {
+    return { ok: false, message: 'This account is blocked. Please contact the administrator.' };
+  }
+
+  if (user.password !== password) {
+    return { ok: false, message: 'Incorrect password. Please try again.' };
+  }
+
+  setItem('session', {
+    userId: user.id,
+    loggedInAt: new Date().toISOString(),
+  });
+
+  return { ok: true, user };
+};
+
+export const logoutUser = () => {
+  removeItem('session');
+};
+
+export const registerUser = ({ name, email, password }) => {
+  const trimmedName = name.trim();
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!trimmedName) {
+    return { ok: false, message: 'Please enter your full name.' };
+  }
+
+  if (getUsers().some((user) => normalizeEmail(user.email) === normalizedEmail)) {
+    return { ok: false, message: 'An account with that email already exists.' };
+  }
+
+  const user = {
+    id: `user-${Date.now().toString(36)}`,
+    name: trimmedName,
+    email: normalizedEmail,
+    password,
+    role: 'Student',
+    createdAt: new Date().toISOString(),
+    isDemo: false,
+    blocked: false,
+  };
+
+  persistUsers([...getUsers(), user]);
+  setItem('session', {
+    userId: user.id,
+    loggedInAt: new Date().toISOString(),
+  });
+
+  return { ok: true, user };
+};
+
+export const resetUserPassword = ({ email, newPassword }) => {
+  const normalizedEmail = normalizeEmail(email);
+  let found = false;
+
+  const users = getUsers().map((user) => {
+    if (normalizeEmail(user.email) !== normalizedEmail) return user;
+    found = true;
+    return { ...user, password: newPassword };
+  });
+
+  if (!found) {
+    return { ok: false, message: 'No account was found for that email address.' };
+  }
+
+  persistUsers(users);
+  return { ok: true, message: 'Password updated. You can sign in with the new password now.' };
+};
+
+const updateUserRecord = (userId, updates) => {
+  let nextUser = null;
+
+  const users = getUsers().map((user) => {
+    if (user.id !== userId) return user;
+    nextUser = { ...user, ...updates };
+    return nextUser;
+  });
+
+  if (!nextUser) return null;
+
+  persistUsers(users);
+  return nextUser;
+};
+
+export const createManagedUser = ({ name, email, password, role }) => {
+  const actor = getActor();
+  const trimmedName = name.trim();
+  const normalizedEmail = normalizeEmail(email);
+  const allowedRoles = getAssignableRoles();
+
+  if (!actor || !isPrivileged(actor.role)) {
+    return { ok: false, message: 'You do not have permission to create users.' };
+  }
+
+  if (!trimmedName || !normalizedEmail || !password) {
+    return { ok: false, message: 'Please complete all required user fields.' };
+  }
+
+  if (!allowedRoles.includes(role)) {
+    return { ok: false, message: 'You cannot assign that role.' };
+  }
+
+  if (getUsers().some((user) => normalizeEmail(user.email) === normalizedEmail)) {
+    return { ok: false, message: 'An account with that email already exists.' };
+  }
+
+  const user = {
+    id: `managed-user-${Date.now().toString(36)}`,
+    name: trimmedName,
+    email: normalizedEmail,
+    password,
+    role,
+    createdAt: new Date().toISOString(),
+    isDemo: false,
+    blocked: false,
+  };
+
+  persistUsers([...getUsers(), user]);
+  return { ok: true, user };
+};
+
+export const editManagedUser = (userId, updates) => {
+  const actor = getActor();
+  const targetUser = getUsers().find((user) => user.id === userId);
+
+  if (!actor || !isPrivileged(actor.role) || !targetUser) {
+    return { ok: false, message: 'Unable to update that user.' };
+  }
+
+  if (!canManageRole(actor.role, targetUser.role) && actor.id !== targetUser.id) {
+    return { ok: false, message: 'You do not have permission to edit that user.' };
+  }
+
+  const nextRole = updates.role || targetUser.role;
+  if (!getAssignableRoles().includes(nextRole) && actor.id !== targetUser.id) {
+    return { ok: false, message: 'You cannot assign that role.' };
+  }
+
+  const trimmedName = updates.name?.trim();
+  const normalizedEmail = updates.email ? normalizeEmail(updates.email) : targetUser.email;
+
+  if (normalizedEmail !== targetUser.email && getUsers().some((user) => user.id !== userId && normalizeEmail(user.email) === normalizedEmail)) {
+    return { ok: false, message: 'Another account already uses that email.' };
+  }
+
+  const nextUser = updateUserRecord(userId, {
+    ...updates,
+    name: trimmedName || targetUser.name,
+    email: normalizedEmail,
+  });
+
+  return nextUser ? { ok: true, user: nextUser } : { ok: false, message: 'Unable to update that user.' };
+};
+
+export const toggleManagedUserBlocked = (userId) => {
+  const actor = getActor();
+  const targetUser = getUsers().find((user) => user.id === userId);
+
+  if (!actor || !isPrivileged(actor.role) || !targetUser) {
+    return { ok: false, message: 'Unable to update that user.' };
+  }
+
+  if (actor.id === targetUser.id) {
+    return { ok: false, message: 'You cannot block your own account.' };
+  }
+
+  if (!canManageRole(actor.role, targetUser.role)) {
+    return { ok: false, message: 'You do not have permission to block that user.' };
+  }
+
+  const nextUser = updateUserRecord(userId, { blocked: !targetUser.blocked });
+  return nextUser ? { ok: true, user: nextUser } : { ok: false, message: 'Unable to update that user.' };
+};
+
+export const getRole = () => getCurrentUser()?.role || 'Student';
+
+export const setRole = (role) => {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return null;
+  return updateUserRecord(currentUser.id, { role });
+};
+
+export const getStudentName = () => getCurrentUser()?.name || 'Student';
+
+export const setStudentName = (name) => {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return null;
+
+  const trimmedName = name.trim();
+  if (!trimmedName) return currentUser;
+
+  return updateUserRecord(currentUser.id, { name: trimmedName });
+};
+
+export const getEnrollments = () => getUserItem('enrollments', {});
+export const getCoursePayments = () => getUserItem('course_payments', {});
+
+export const isCourseAccessUnlocked = (course, role = getCurrentUser()?.role) => {
+  if (!course) return false;
+  if (role && role !== 'Student') return true;
+  if (!course.requiresPayment) return true;
+  return Boolean(getCoursePayments()[course.id]?.unlockedAt);
+};
+
+export const getAccessibleLessonCount = (course, role = getCurrentUser()?.role) => {
+  if (!course?.lessons?.length) return 0;
+  if (isCourseAccessUnlocked(course, role)) return course.lessons.length;
+  return normalizeFreePreviewLessons(course.freePreviewLessons, course.lessons.length);
+};
+
+export const canAccessCourseLesson = (course, lessonIndex, role = getCurrentUser()?.role) => {
+  if (!course?.lessons?.length) return false;
+  const normalizedIndex = Number.isFinite(lessonIndex) ? lessonIndex : 0;
+  return normalizedIndex >= 0 && normalizedIndex < getAccessibleLessonCount(course, role);
+};
+
+export const unlockCourseAccess = (courseId, payment = {}) => {
+  const currentUser = getCurrentUser();
+  const course = findManagedCourse(courseId);
+
+  if (!currentUser || !course) {
+    return { ok: false, message: 'Course payment could not be processed.' };
+  }
+
+  if (currentUser.role !== 'Student' || !course.requiresPayment) {
+    return { ok: true, payment: getCoursePayments()[courseId] || null };
+  }
+
+  const payerName = payment.payerName?.trim();
+  const transactionId = payment.transactionId?.trim();
+
+  if (!payerName) {
+    return { ok: false, message: 'Please enter the payer name used for the payment.' };
+  }
+
+  if (!transactionId) {
+    return { ok: false, message: 'Please enter the transaction or reference ID from your payment app.' };
+  }
+
+  const payments = getCoursePayments();
+  payments[courseId] = {
+    status: 'paid',
+    payerName,
+    transactionId,
+    amountPKR: normalizePricePkr(course.pricePKR),
+    method: COURSE_PAYMENT_DETAILS.methodLabel,
+    accountName: COURSE_PAYMENT_DETAILS.accountName,
+    upiId: COURSE_PAYMENT_DETAILS.upiId,
+    unlockedAt: new Date().toISOString(),
+  };
+
+  const saved = setUserItem('course_payments', payments);
+  if (!saved) {
+    return { ok: false, message: 'The course payment could not be saved on this device.' };
+  }
+
+  return { ok: true, payment: payments[courseId] };
+};
+
 export const enrollCourse = (courseId) => {
   const enrollments = getEnrollments();
   enrollments[courseId] = { enrolledAt: new Date().toISOString() };
-  setItem('enrollments', enrollments);
+  setUserItem('enrollments', enrollments);
 };
+
 export const isEnrolled = (courseId) => !!getEnrollments()[courseId];
 
-// ── Lesson Progress ───────────────────────────
-export const getCompletedLessons = () => getItem('completed_lessons', {});
+export const getCompletedLessons = () => getUserItem('completed_lessons', {});
+
+export const getLessonWatchProgress = () => getUserItem('lesson_watch_progress', {});
+
+export const updateLessonWatchProgress = (lessonId, courseId, progress = {}) => {
+  if (!lessonId) return null;
+
+  const progressMap = getLessonWatchProgress();
+  const current = progressMap[lessonId] || {};
+  const currentDuration = normalizeProgressSeconds(current.durationSeconds);
+  const currentWatched = normalizeProgressSeconds(current.watchedSeconds);
+  const currentPercent = normalizeProgressPercent(current.percent);
+  const nextDuration = Math.max(currentDuration, normalizeProgressSeconds(progress.durationSeconds));
+  const watchedCandidate = Math.max(currentWatched, normalizeProgressSeconds(progress.watchedSeconds));
+  const watchedSeconds = nextDuration > 0 ? Math.min(nextDuration, watchedCandidate) : watchedCandidate;
+  const derivedPercent = nextDuration > 0 ? Math.round((watchedSeconds / nextDuration) * 100) : 0;
+  const percent = Math.max(currentPercent, normalizeProgressPercent(progress.percent), derivedPercent);
+
+  const nextProgress = {
+    ...current,
+    courseId: courseId || current.courseId || '',
+    watchedSeconds,
+    durationSeconds: nextDuration,
+    percent,
+    updatedAt: new Date().toISOString(),
+  };
+
+  progressMap[lessonId] = nextProgress;
+  setUserItem('lesson_watch_progress', progressMap);
+  return nextProgress;
+};
+
+export const getLessonWatchPercent = (lessonId) => (
+  normalizeProgressPercent(getLessonWatchProgress()[lessonId]?.percent)
+);
+
+export const canBypassWatchRequirement = (role = getCurrentUser()?.role) => (
+  !!role && ROLE_ORDER[role] >= ROLE_ORDER.Admin
+);
+
+export const canMarkLessonComplete = (lessonId, threshold = LESSON_WATCH_THRESHOLD) => (
+  canBypassWatchRequirement() || getLessonWatchPercent(lessonId) >= threshold
+);
 
 export const markLessonComplete = (lessonId, courseId) => {
   const completed = getCompletedLessons();
   completed[lessonId] = { completedAt: new Date().toISOString(), courseId };
-  setItem('completed_lessons', completed);
-  // Update streak when a lesson is completed
+  setUserItem('completed_lessons', completed);
   updateStreak();
 };
 
 export const markLessonIncomplete = (lessonId) => {
   const completed = getCompletedLessons();
   delete completed[lessonId];
-  setItem('completed_lessons', completed);
+  setUserItem('completed_lessons', completed);
 };
 
 export const isLessonComplete = (lessonId) => !!getCompletedLessons()[lessonId];
 
-// ── Course Progress % ─────────────────────────
 export const getCourseProgress = (course) => {
   if (!course?.lessons?.length) return 0;
   const completed = getCompletedLessons();
-  const done = course.lessons.filter(l => completed[l.id]).length;
+  const done = course.lessons.filter((lesson) => completed[lesson.id]).length;
+  return Math.round((done / course.lessons.length) * 100);
+};
+
+export const getCourseWatchStats = (course, threshold = LESSON_WATCH_THRESHOLD) => {
+  if (!course?.lessons?.length) {
+    return {
+      threshold,
+      totalLessons: 0,
+      eligibleLessons: 0,
+      averagePercent: 0,
+      isEligible: false,
+    };
+  }
+
+  const progressMap = getLessonWatchProgress();
+  const lessonPercents = course.lessons.map((lesson) => normalizeProgressPercent(progressMap[lesson.id]?.percent));
+  const eligibleLessons = lessonPercents.filter((percent) => percent >= threshold).length;
+  const averagePercent = Math.round(
+    lessonPercents.reduce((sum, percent) => sum + percent, 0) / course.lessons.length
+  );
+
+  return {
+    threshold,
+    totalLessons: course.lessons.length,
+    eligibleLessons,
+    averagePercent,
+    isEligible: eligibleLessons === course.lessons.length,
+  };
+};
+
+export const getCourseProgressForUser = (course, userId) => {
+  if (!course?.lessons?.length) return 0;
+  const completed = getUserItemById(userId, 'completed_lessons', {});
+  const done = course.lessons.filter((lesson) => completed[lesson.id]).length;
   return Math.round((done / course.lessons.length) * 100);
 };
 
 export const isCourseComplete = (course) => getCourseProgress(course) === 100;
 
-// ── Streak ────────────────────────────────────
+export const canGenerateCertificate = (course, threshold = LESSON_WATCH_THRESHOLD) => {
+  if (!course?.lessons?.length) return false;
+  if (getCourseProgress(course) !== 100) return false;
+  if (canBypassWatchRequirement()) return true;
+  return getCourseWatchStats(course, threshold).isEligible;
+};
+
 const toDateStr = (date) => date.toISOString().split('T')[0];
 
-export const getStreak = () => getItem('streak', {
+export const getStreak = () => getUserItem('streak', {
   currentStreak: 0,
   longestStreak: 0,
   lastStudyDate: null,
-  weekDays: [], // array of ISO date strings for last 7 days studied
+  weekDays: [],
 });
 
 export const updateStreak = () => {
   const streak = getStreak();
   const today = toDateStr(new Date());
 
-  // Already studied today — no update needed
   if (streak.lastStudyDate === today) return streak;
 
-  // Check if yesterday was the last study day
   const yesterday = toDateStr(new Date(Date.now() - 86400000));
   let current = streak.currentStreak;
 
   if (streak.lastStudyDate === yesterday) {
-    // Consecutive day — increment
     current += 1;
   } else {
-    // Missed a day — reset
     current = 1;
   }
 
   const longest = Math.max(current, streak.longestStreak || 0);
-
-  // Track studied days (keep last 7 unique dates)
   const weekDays = [...(streak.weekDays || [])];
-  if (!weekDays.includes(today)) weekDays.push(today);
-  const recentWeek = weekDays.slice(-7);
 
-  const updated = { currentStreak: current, longestStreak: longest, lastStudyDate: today, weekDays: recentWeek };
-  setItem('streak', updated);
+  if (!weekDays.includes(today)) weekDays.push(today);
+
+  const updated = {
+    currentStreak: current,
+    longestStreak: longest,
+    lastStudyDate: today,
+    weekDays: weekDays.slice(-7),
+  };
+
+  setUserItem('streak', updated);
   return updated;
 };
 
-// ── Certificates ──────────────────────────────
-export const getCertificates = () => getItem('certificates', {});
+export const getCertificates = () => getUserItem('certificates', {});
 
 export const issueCertificate = (courseId, courseName, studentName) => {
   const certs = getCertificates();
-  if (!certs[courseId]) {
-    certs[courseId] = {
-      id: `ANA-${Date.now().toString(36).toUpperCase()}`,
-      courseId,
-      courseName,
-      studentName,
-      issuedAt: new Date().toISOString(),
-    };
-    setItem('certificates', certs);
+  if (certs[courseId]) {
+    return { ok: true, certificate: certs[courseId] };
   }
-  return certs[courseId];
+
+  const course = findManagedCourse(courseId);
+  if (!course || !canGenerateCertificate(course)) {
+    return {
+      ok: false,
+      message: `Watch at least ${LESSON_WATCH_THRESHOLD}% of every lesson and mark each lesson complete before claiming the certificate.`,
+    };
+  }
+
+  certs[courseId] = {
+    id: `ANA-${Date.now().toString(36).toUpperCase()}`,
+    courseId,
+    courseName,
+    studentName,
+    issuedAt: new Date().toISOString(),
+    signatureImage: getPlatformSettings().certificateSignature || '',
+  };
+  setUserItem('certificates', certs);
+
+  return { ok: true, certificate: certs[courseId] };
 };
 
 export const getCertificate = (courseId) => getCertificates()[courseId] || null;
 
-// ── Teacher Courses (locally added) ──────────
-export const getTeacherCourses = () => getItem('teacher_courses', []);
-export const addTeacherCourse = (course) => {
-  const courses = getTeacherCourses();
-  courses.push({ ...course, id: `tc-${Date.now()}`, createdAt: new Date().toISOString() });
-  setItem('teacher_courses', courses);
-};
+export const getLessonNotes = () => getUserItem('lesson_notes', {});
 
-// ── Notes ─────────────────────────────────────
-export const getLessonNotes = () => getItem('lesson_notes', {});
 export const saveLessonNote = (lessonId, note) => {
   const notes = getLessonNotes();
   notes[lessonId] = { text: note, savedAt: new Date().toISOString() };
-  setItem('lesson_notes', notes);
+  setUserItem('lesson_notes', notes);
 };
 
-// ── Analytics (mock) ──────────────────────────
-export const getAnalytics = () => ({
-  totalStudents: 247,
-  activeToday: 38,
-  coursesPublished: 7,
-  certificatesIssued: 89,
-  avgCompletion: 64,
-  topCourse: 'Seerah Course',
-});
+export const getTeacherCourses = () => {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return [];
+  return getManagedCourses().filter((course) => course.createdBy === currentUser.id);
+};
+
+export const createManagedCourse = (payload) => {
+  const actor = getActor();
+  if (!actor || ROLE_ORDER[actor.role] < ROLE_ORDER.Teacher) {
+    return { ok: false, message: 'You do not have permission to create courses.' };
+  }
+
+  const title = payload.title.trim();
+  if (!title) {
+    return { ok: false, message: 'Course title is required.' };
+  }
+
+  const course = hydrateCourse({
+    ...payload,
+    id: `${slugify(title)}-${Date.now().toString(36)}`,
+    title,
+    subject: payload.subject || 'Other',
+    category: payload.category || 'Aalim Course',
+    level: payload.level || 'Beginner',
+    duration: payload.duration || `${normalizeTotalLessons(payload.totalLessons)} hours`,
+    totalLessons: normalizeTotalLessons(payload.totalLessons),
+    instructor: payload.instructor?.trim() || actor.name,
+    description: payload.description?.trim() || 'New course draft.',
+    playlistUrl: payload.playlistUrl?.trim() || '',
+    thumbnail: payload.thumbnail || DEFAULT_THUMBNAIL,
+    createdAt: new Date().toISOString(),
+    createdBy: actor.id,
+    isCustom: true,
+  });
+
+  setCustomCourses([...getCustomCourses(), course]);
+  return { ok: true, course };
+};
+
+export const editManagedCourse = (courseId, updates) => {
+  const actor = getActor();
+  if (!actor || ROLE_ORDER[actor.role] < ROLE_ORDER.Teacher) {
+    return { ok: false, message: 'You do not have permission to edit courses.' };
+  }
+
+  const existing = findManagedCourse(courseId);
+  if (!existing) {
+    return { ok: false, message: 'Course not found.' };
+  }
+
+  const nextCourse = hydrateCourse({
+    ...existing,
+    ...updates,
+    title: updates.title?.trim() || existing.title,
+    instructor: updates.instructor?.trim() || existing.instructor,
+    description: updates.description?.trim() || existing.description,
+    subject: updates.subject || existing.subject,
+    category: updates.category || existing.category,
+    level: updates.level || existing.level,
+    totalLessons: normalizeTotalLessons(updates.totalLessons, existing.totalLessons),
+    lessons: buildLessons({
+      title: updates.title?.trim() || existing.title,
+      totalLessons: normalizeTotalLessons(updates.totalLessons, existing.totalLessons),
+      playlistUrl: updates.playlistUrl || existing.playlistUrl,
+      existingLessons: existing.lessons,
+    }),
+  });
+
+  if (existing.isCustom) {
+    const customCourses = getCustomCourses().map((course) => (course.id === courseId ? nextCourse : course));
+    setCustomCourses(customCourses);
+  } else {
+    const overrides = getCourseOverrides();
+    overrides[courseId] = {
+      ...overrides[courseId],
+      title: nextCourse.title,
+      subject: nextCourse.subject,
+      description: nextCourse.description,
+      instructor: nextCourse.instructor,
+      playlistUrl: nextCourse.playlistUrl,
+      totalLessons: nextCourse.totalLessons,
+      level: nextCourse.level,
+      category: nextCourse.category,
+      duration: nextCourse.duration,
+      thumbnail: nextCourse.thumbnail,
+      lessons: nextCourse.lessons,
+    };
+    setCourseOverrides(overrides);
+  }
+
+  return { ok: true, course: nextCourse };
+};
+
+export const getUserLearningStats = (userId) => {
+  const enrollments = getUserItemById(userId, 'enrollments', {});
+  const completedLessons = getUserItemById(userId, 'completed_lessons', {});
+  const certificates = getUserItemById(userId, 'certificates', {});
+
+  return {
+    coursesEnrolled: Object.keys(enrollments).length,
+    lessonsCompleted: Object.keys(completedLessons).length,
+    certificatesIssued: Object.keys(certificates).length,
+  };
+};
+
+export const getManagedUsers = () => {
+  return getUsers()
+    .map((user) => ({
+      ...user,
+      ...getUserLearningStats(user.id),
+    }))
+    .sort((a, b) => {
+      const roleDelta = ROLE_ORDER[b.role] - ROLE_ORDER[a.role];
+      if (roleDelta !== 0) return roleDelta;
+      return a.name.localeCompare(b.name);
+    });
+};
+
+export const getAnalytics = () => {
+  const users = getManagedUsers();
+  const totalStudents = users.filter((user) => user.role === 'Student').length;
+  const certificatesIssued = users.reduce((sum, user) => sum + user.certificatesIssued, 0);
+
+  return {
+    totalStudents,
+    activeToday: Math.max(3, Math.round(totalStudents * 0.32)),
+    coursesPublished: getManagedCourses().length,
+    certificatesIssued,
+    avgCompletion: 64,
+    topCourse: 'Seerah Course',
+  };
+};

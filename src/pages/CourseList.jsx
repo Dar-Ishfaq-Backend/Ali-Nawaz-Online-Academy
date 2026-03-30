@@ -1,19 +1,23 @@
 import { useState } from 'react';
-import { Search, Filter } from 'lucide-react';
-import { COURSES } from '../data/courses';
+import { Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import CourseCard from '../components/CourseCard';
-
-const CATEGORIES = ['All', 'Aalim Course', 'Seerah Course'];
-const SUBJECTS = ['All', 'Quran', 'Hadith', 'Fiqh', 'Sarf', 'Nahw', 'Arabic', 'Seerah'];
+import AalimProgramCard from '../components/AalimProgramCard';
+import { AALIM_PROGRAM } from '../data/courses';
 
 export default function CourseList() {
-  const { enrollments } = useApp();
+  const { enrollments, courses } = useApp();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [subject, setSubject] = useState('All');
 
-  const filtered = COURSES.filter(c => {
+  const categories = ['All', ...new Set(courses.map((course) => course.category))];
+  const subjects = ['All', ...new Set(courses.map((course) => course.subject))];
+  const requiredAalimCourses = AALIM_PROGRAM.requiredCourseIds
+    .map((courseId) => courses.find((course) => course.id === courseId))
+    .filter(Boolean);
+
+  const filtered = courses.filter(c => {
     const matchSearch = c.title.toLowerCase().includes(search.toLowerCase())
       || c.description.toLowerCase().includes(search.toLowerCase())
       || c.instructor.toLowerCase().includes(search.toLowerCase());
@@ -50,14 +54,14 @@ export default function CourseList() {
         <select value={category} onChange={e => setCategory(e.target.value)}
           className="px-3 py-2 rounded-lg text-sm font-crimson text-cream/80 outline-none cursor-pointer"
           style={{ background: 'rgba(6,78,59,0.3)', border: '1px solid rgba(245,158,11,0.2)' }}>
-          {CATEGORIES.map(c => <option key={c} value={c} style={{ background: '#051a0f' }}>{c}</option>)}
+          {categories.map(c => <option key={c} value={c} style={{ background: '#051a0f' }}>{c}</option>)}
         </select>
 
         {/* Subject filter */}
         <select value={subject} onChange={e => setSubject(e.target.value)}
           className="px-3 py-2 rounded-lg text-sm font-crimson text-cream/80 outline-none cursor-pointer"
           style={{ background: 'rgba(6,78,59,0.3)', border: '1px solid rgba(245,158,11,0.2)' }}>
-          {SUBJECTS.map(s => <option key={s} value={s} style={{ background: '#051a0f' }}>{s}</option>)}
+          {subjects.map(s => <option key={s} value={s} style={{ background: '#051a0f' }}>{s}</option>)}
         </select>
       </div>
 
@@ -74,8 +78,12 @@ export default function CourseList() {
         )}
       </div>
 
-      {/* Aalim Course section */}
       {(category === 'All' || category === 'Aalim Course') && (
+        <AalimProgramCard requiredCourses={requiredAalimCourses} />
+      )}
+
+      {/* Aalim Course section */}
+      {(category === 'All' || category === 'Aalim Course') && filtered.some(c => c.category === 'Aalim Course') && (
         <section>
           <div className="flex items-center gap-3 mb-4">
             <div className="gold-divider flex-1" />
@@ -91,7 +99,7 @@ export default function CourseList() {
       )}
 
       {/* Seerah Course section */}
-      {(category === 'All' || category === 'Seerah Course') && (
+      {(category === 'All' || category === 'Seerah Course') && filtered.some(c => c.category === 'Seerah Course') && (
         <section>
           <div className="flex items-center gap-3 mb-4">
             <div className="gold-divider flex-1" />
@@ -104,6 +112,27 @@ export default function CourseList() {
             ))}
           </div>
         </section>
+      )}
+
+      {(category === 'All') && (
+        <>
+          {Array.from(new Set(filtered.map((course) => course.category)))
+            .filter((cat) => !['Aalim Course', 'Seerah Course'].includes(cat))
+            .map((cat) => (
+              <section key={cat}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="gold-divider flex-1" />
+                  <h2 className="font-cinzel font-bold text-gold-400 text-lg whitespace-nowrap">{cat}</h2>
+                  <div className="gold-divider flex-1" />
+                </div>
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {filtered.filter((course) => course.category === cat).map((course) => (
+                    <CourseCard key={course.id} course={course} enrolled={!!enrollments[course.id]} />
+                  ))}
+                </div>
+              </section>
+            ))}
+        </>
       )}
 
       {filtered.length === 0 && (

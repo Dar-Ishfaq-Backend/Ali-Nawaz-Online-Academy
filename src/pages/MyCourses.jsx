@@ -1,15 +1,14 @@
 import { Link } from 'react-router-dom';
 import { BookOpen, ChevronRight, CheckCircle2, Award } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { COURSES } from '../data/courses';
 import { getCourseProgress } from '../utils/storage';
 import ProgressBar from '../components/ProgressBar';
 import CourseCard from '../components/CourseCard';
 
 export default function MyCourses() {
-  const { enrollments, completedLessons, certificates } = useApp();
+  const { enrollments, completedLessons, certificates, courses } = useApp();
 
-  const enrolled = COURSES.filter(c => enrollments[c.id])
+  const enrolled = courses.filter(c => enrollments[c.id])
     .map(c => ({ ...c, progress: getCourseProgress(c) }))
     .sort((a, b) => b.progress - a.progress);
 

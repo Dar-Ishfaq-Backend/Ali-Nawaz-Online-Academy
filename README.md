@@ -111,7 +111,7 @@ Click your role badge in the **top-right corner** of the navbar:
 
 ## 🔥 Streak System Logic
 
-- Stored in `localStorage` under key `nur_streak`
+- Stored in `localStorage` under key `ali_nawaz_streak`
 - Updates automatically when a lesson is marked complete
 - **Increments** if the last study date was yesterday
 - **Resets to 1** if a day was missed
