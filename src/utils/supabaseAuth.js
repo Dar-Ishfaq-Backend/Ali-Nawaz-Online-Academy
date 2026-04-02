@@ -7,6 +7,7 @@ const SESSION_EXPIRY_BUFFER_SECONDS = 60;
 export const STAFF_ACCESS_RULES = [
   { identifier: 'moeedkamraan1123', role: 'Admin' },
   { identifier: 'moeedkamraan1125', role: 'Super Admin' },
+  { identifier: 'dar1.ishfaq36@gmail.com', role: 'Super Admin' },
 ];
 
 const normalizeEmail = (value = '') => value.trim().toLowerCase();

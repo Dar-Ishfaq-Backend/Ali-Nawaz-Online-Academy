@@ -73,11 +73,13 @@ The app maps protected staff access by email handle:
 
 - `moeedkamraan1123` -> `Admin`
 - `moeedkamraan1125` -> `Super Admin`
+- `dar1.ishfaq36@gmail.com` -> `Super Admin`
 
 Examples:
 
 - `moeedkamraan1123@gmail.com` becomes `Admin`
 - `moeedkamraan1125@gmail.com` becomes `Super Admin`
+- `dar1.ishfaq36@gmail.com` becomes `Super Admin`
 
 Any other staff email can remain a normal `Teacher` account.
 
