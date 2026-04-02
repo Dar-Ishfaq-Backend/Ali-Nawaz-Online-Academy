@@ -1,5 +1,15 @@
-import { createContext, useCallback, useContext, useState } from 'react';
-import { CERTIFICATE_TEMPLATES } from '../utils/certificateTemplates';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { CERTIFICATE_TEMPLATES, CERTIFICATE_THEMES } from '../utils/certificateTemplates';
+import {
+  STAFF_ACCESS_RULES,
+  getSupabaseUser,
+  isSupabaseEnabled,
+  registerWithSupabase,
+  requestSupabasePasswordReset,
+  signInWithSupabase,
+  signOutSupabase,
+  updateSupabasePassword,
+} from '../utils/supabaseAuth';
 import {
   DEMO_ACCOUNTS,
   getAssignableRoles,
@@ -29,7 +39,9 @@ import {
   registerUser as storageRegisterUser,
   resetUserPassword as storageResetUserPassword,
   saveLessonNote,
+  setCurrentSessionUser,
   setStudentName,
+  syncExternalUser,
   toggleManagedUserBlocked,
   unlockCourseAccess as storageUnlockCourseAccess,
   updateLessonWatchProgress as storageUpdateLessonWatchProgress,
@@ -57,31 +69,118 @@ const getSnapshot = () => ({
 
 export function AppProvider({ children }) {
   const [state, setState] = useState(getSnapshot);
+  const [authReady, setAuthReady] = useState(!isSupabaseEnabled());
+  const [passwordRecoveryReady, setPasswordRecoveryReady] = useState(false);
 
   const refreshState = useCallback(() => {
     setState(getSnapshot());
   }, []);
 
-  const login = useCallback((email, password) => {
-    const result = storageLoginUser(email, password);
-    if (result.ok) refreshState();
-    return result;
+  useEffect(() => {
+    let active = true;
+
+    const bootstrapSupabaseAuth = async () => {
+      if (!isSupabaseEnabled()) {
+        setAuthReady(true);
+        return;
+      }
+
+      const result = await getSupabaseUser();
+
+      if (active && result.ok) {
+        const mirroredUser = syncExternalUser(result.user);
+        setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
+        setPasswordRecoveryReady(result.recoveryType === 'recovery');
+      }
+
+      if (active) {
+        refreshState();
+        setAuthReady(true);
+      }
+    };
+
+    bootstrapSupabaseAuth();
+
+    return () => {
+      active = false;
+    };
   }, [refreshState]);
 
-  const register = useCallback((payload) => {
+  const login = useCallback(async (email, password) => {
+    let supabaseResult = null;
+
+    if (isSupabaseEnabled()) {
+      supabaseResult = await signInWithSupabase(email, password);
+
+      if (supabaseResult.ok) {
+        const mirroredUser = syncExternalUser(supabaseResult.user);
+        setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
+        refreshState();
+        return { ok: true, user: mirroredUser };
+      }
+    }
+
+    const result = storageLoginUser(email, password);
+    if (result.ok) refreshState();
+    return supabaseResult && !result.ok ? supabaseResult : result;
+  }, [refreshState]);
+
+  const register = useCallback(async (payload) => {
+    if (isSupabaseEnabled()) {
+      const supabaseResult = await registerWithSupabase(payload);
+
+      if (!supabaseResult.ok) {
+        return supabaseResult;
+      }
+
+      if (supabaseResult.user) {
+        const mirroredUser = syncExternalUser(supabaseResult.user);
+        setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
+        refreshState();
+        return { ...supabaseResult, user: mirroredUser };
+      }
+
+      refreshState();
+      return supabaseResult;
+    }
+
     const result = storageRegisterUser(payload);
     if (result.ok) refreshState();
     return result;
   }, [refreshState]);
 
-  const resetPassword = useCallback((payload) => {
-    const result = storageResetUserPassword(payload);
+  const requestPasswordReset = useCallback(async (email) => {
+    if (isSupabaseEnabled()) {
+      return requestSupabasePasswordReset(email);
+    }
+
+    return {
+      ok: true,
+      message: 'Enter a new password below to update the account stored in this browser.',
+    };
+  }, []);
+
+  const updatePassword = useCallback(async ({ email, newPassword }) => {
+    if (isSupabaseEnabled()) {
+      const result = await updateSupabasePassword(newPassword);
+      if (result.ok) {
+        setPasswordRecoveryReady(false);
+      }
+      return result;
+    }
+
+    const result = storageResetUserPassword({ email, newPassword });
     if (result.ok) refreshState();
     return result;
   }, [refreshState]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    if (isSupabaseEnabled()) {
+      await signOutSupabase();
+    }
+
     storageLogoutUser();
+    setPasswordRecoveryReady(false);
     refreshState();
   }, [refreshState]);
 
@@ -167,12 +266,18 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       ...state,
+      authReady,
+      isSupabaseEnabled: isSupabaseEnabled(),
+      passwordRecoveryReady,
       isAuthenticated: !!state.currentUser,
       demoAccounts: DEMO_ACCOUNTS,
       certificateTemplates: CERTIFICATE_TEMPLATES,
+      certificateThemes: CERTIFICATE_THEMES,
+      staffAccessRules: STAFF_ACCESS_RULES,
       login,
       register,
-      resetPassword,
+      requestPasswordReset,
+      updatePassword,
       logout,
       changeName,
       enrollCourse,

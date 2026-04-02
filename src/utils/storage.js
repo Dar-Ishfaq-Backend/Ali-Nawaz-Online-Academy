@@ -1,7 +1,9 @@
 import { COURSES as BASE_COURSES } from '../data/courses';
 import {
   DEFAULT_CERTIFICATE_TEMPLATE,
+  DEFAULT_CERTIFICATE_THEME,
   isCertificateTemplate,
+  isCertificateTheme,
 } from './certificateTemplates';
 import { COURSE_PAYMENT_DETAILS } from './paymentConfig';
 
@@ -157,6 +159,14 @@ export const getUsers = () => {
 
 export const getCurrentSession = () => getItem('session', null);
 
+export const setCurrentSessionUser = (userId, extra = {}) => {
+  setItem('session', {
+    userId,
+    loggedInAt: new Date().toISOString(),
+    ...extra,
+  });
+};
+
 export const getCurrentUser = () => {
   const session = getCurrentSession();
   if (!session?.userId) return null;
@@ -207,36 +217,74 @@ const buildLessons = ({ title, totalLessons, playlistUrl, existingLessons = [] }
   return lessons;
 };
 
+const serializeCourse = (course) => {
+  const hydrated = hydrateCourse(course);
+
+  return {
+    id: String(hydrated.id),
+    title: hydrated.title,
+    description: hydrated.description,
+    price: hydrated.price,
+    is_paid: hydrated.is_paid,
+    youtube_playlist_url: hydrated.youtube_playlist_url,
+    thumbnail: hydrated.thumbnail,
+    instructor: hydrated.instructor,
+    created_at: hydrated.created_at,
+    lessons: hydrated.lessons,
+    freePreviewLessons: hydrated.freePreviewLessons,
+    createdBy: hydrated.createdBy || '',
+    isCustom: Boolean(hydrated.isCustom),
+  };
+};
+
 const hydrateCourse = (course) => {
+  const youtubePlaylistUrl = course.youtube_playlist_url || course.playlistUrl || '';
+  const createdAt = course.created_at || course.createdAt || new Date().toISOString();
+  const price = normalizePricePkr(course.price ?? course.pricePKR);
+  const isPaid = typeof course.is_paid === 'boolean'
+    ? course.is_paid
+    : Boolean(course.requiresPayment ?? price > 0);
   const totalLessons = normalizeTotalLessons(course.totalLessons, course.lessons?.length || 1);
   const lessons = buildLessons({
     title: course.title,
     totalLessons,
-    playlistUrl: course.playlistUrl,
+    playlistUrl: youtubePlaylistUrl,
     existingLessons: Array.isArray(course.lessons) ? course.lessons : [],
   });
 
   return {
     ...course,
+    id: String(course.id),
     totalLessons,
     lessons,
-    requiresPayment: Boolean(course.requiresPayment),
-    freePreviewLessons: course.requiresPayment
+    price,
+    is_paid: isPaid,
+    youtube_playlist_url: youtubePlaylistUrl,
+    created_at: createdAt,
+    requiresPayment: isPaid,
+    freePreviewLessons: isPaid
       ? normalizeFreePreviewLessons(course.freePreviewLessons, totalLessons)
       : totalLessons,
-    pricePKR: normalizePricePkr(course.pricePKR),
+    pricePKR: price,
+    playlistUrl: youtubePlaylistUrl,
+    createdAt,
     currency: course.currency || 'PKR',
     isShortCourse: Boolean(course.isShortCourse),
     thumbnail: course.thumbnail || DEFAULT_THUMBNAIL,
+    subject: course.subject || 'General Studies',
+    category: course.category || (isPaid ? 'Premium Course' : 'Free Course'),
+    level: course.level || 'All Levels',
+    duration: course.duration || (youtubePlaylistUrl ? 'YouTube playlist' : `${totalLessons} lessons`),
   };
 };
 
 const getCourseOverrides = () => getItem('platform_course_overrides', {});
 const setCourseOverrides = (overrides) => setItem('platform_course_overrides', overrides);
 const getCustomCourses = () => getItem('platform_custom_courses', []).map(hydrateCourse);
-const setCustomCourses = (courses) => setItem('platform_custom_courses', courses.map(hydrateCourse));
+const setCustomCourses = (courses) => setItem('platform_custom_courses', courses.map(serializeCourse));
 const DEFAULT_PLATFORM_SETTINGS = {
   certificateTemplate: DEFAULT_CERTIFICATE_TEMPLATE,
+  certificateTheme: DEFAULT_CERTIFICATE_THEME,
   certificateSignature: '',
 };
 
@@ -244,6 +292,9 @@ const normalizePlatformSettings = (settings = {}) => ({
   certificateTemplate: isCertificateTemplate(settings.certificateTemplate)
     ? settings.certificateTemplate
     : DEFAULT_PLATFORM_SETTINGS.certificateTemplate,
+  certificateTheme: isCertificateTheme(settings.certificateTheme)
+    ? settings.certificateTheme
+    : DEFAULT_PLATFORM_SETTINGS.certificateTheme,
   certificateSignature: normalizeSignatureImage(settings.certificateSignature),
 });
 
@@ -251,7 +302,12 @@ export const getPlatformSettings = () => {
   const storedSettings = getItem('platform_settings', null);
   const normalizedSettings = normalizePlatformSettings(storedSettings || {});
 
-  if (!storedSettings || storedSettings.certificateTemplate !== normalizedSettings.certificateTemplate) {
+  if (
+    !storedSettings
+    || storedSettings.certificateTemplate !== normalizedSettings.certificateTemplate
+    || storedSettings.certificateTheme !== normalizedSettings.certificateTheme
+    || storedSettings.certificateSignature !== normalizedSettings.certificateSignature
+  ) {
     setItem('platform_settings', normalizedSettings);
   }
 
@@ -293,6 +349,10 @@ export const updatePlatformSettings = (updates) => {
     return { ok: false, message: 'Please choose a valid certificate template.' };
   }
 
+  if (updates.certificateTheme && !isCertificateTheme(updates.certificateTheme)) {
+    return { ok: false, message: 'Please choose a valid certificate theme.' };
+  }
+
   if (
     Object.prototype.hasOwnProperty.call(updates, 'certificateSignature')
     && updates.certificateSignature !== ''
@@ -330,10 +390,7 @@ export const loginUser = (email, password) => {
     return { ok: false, message: 'Incorrect password. Please try again.' };
   }
 
-  setItem('session', {
-    userId: user.id,
-    loggedInAt: new Date().toISOString(),
-  });
+  setCurrentSessionUser(user.id);
 
   return { ok: true, user };
 };
@@ -366,10 +423,7 @@ export const registerUser = ({ name, email, password }) => {
   };
 
   persistUsers([...getUsers(), user]);
-  setItem('session', {
-    userId: user.id,
-    loggedInAt: new Date().toISOString(),
-  });
+  setCurrentSessionUser(user.id);
 
   return { ok: true, user };
 };
@@ -404,6 +458,40 @@ const updateUserRecord = (userId, updates) => {
   if (!nextUser) return null;
 
   persistUsers(users);
+  return nextUser;
+};
+
+export const syncExternalUser = ({
+  id,
+  name,
+  email,
+  role = 'Student',
+  createdAt,
+  blocked = false,
+  isDemo = false,
+}) => {
+  const normalizedEmail = normalizeEmail(email || '');
+  const existingUser = getUsers().find((user) => (
+    user.id === id || normalizeEmail(user.email) === normalizedEmail
+  ));
+
+  const nextUser = {
+    ...existingUser,
+    id: id || existingUser?.id || `external-user-${Date.now().toString(36)}`,
+    name: name?.trim() || existingUser?.name || 'Student',
+    email: normalizedEmail,
+    role,
+    createdAt: existingUser?.createdAt || createdAt || new Date().toISOString(),
+    blocked: typeof blocked === 'boolean' ? blocked : Boolean(existingUser?.blocked),
+    isDemo: Boolean(existingUser?.isDemo || isDemo),
+    password: existingUser?.password || '',
+  };
+
+  const nextUsers = getUsers().filter((user) => (
+    user.id !== nextUser.id && normalizeEmail(user.email) !== normalizedEmail
+  ));
+
+  persistUsers([...nextUsers, nextUser]);
   return nextUser;
 };
 
@@ -523,7 +611,7 @@ export const getCoursePayments = () => getUserItem('course_payments', {});
 export const isCourseAccessUnlocked = (course, role = getCurrentUser()?.role) => {
   if (!course) return false;
   if (role && role !== 'Student') return true;
-  if (!course.requiresPayment) return true;
+  if (!course.is_paid) return true;
   return Boolean(getCoursePayments()[course.id]?.unlockedAt);
 };
 
@@ -547,7 +635,7 @@ export const unlockCourseAccess = (courseId, payment = {}) => {
     return { ok: false, message: 'Course payment could not be processed.' };
   }
 
-  if (currentUser.role !== 'Student' || !course.requiresPayment) {
+  if (currentUser.role !== 'Student' || !course.is_paid) {
     return { ok: true, payment: getCoursePayments()[courseId] || null };
   }
 
@@ -567,7 +655,7 @@ export const unlockCourseAccess = (courseId, payment = {}) => {
     status: 'paid',
     payerName,
     transactionId,
-    amountPKR: normalizePricePkr(course.pricePKR),
+    amountPKR: normalizePricePkr(course.price),
     method: COURSE_PAYMENT_DETAILS.methodLabel,
     accountName: COURSE_PAYMENT_DETAILS.accountName,
     upiId: COURSE_PAYMENT_DETAILS.upiId,
@@ -761,6 +849,8 @@ export const issueCertificate = (courseId, courseName, studentName) => {
     courseName,
     studentName,
     issuedAt: new Date().toISOString(),
+    template: getPlatformSettings().certificateTemplate,
+    theme: getPlatformSettings().certificateTheme,
     signatureImage: getPlatformSettings().certificateSignature || '',
   };
   setUserItem('certificates', certs);
@@ -795,20 +885,24 @@ export const createManagedCourse = (payload) => {
     return { ok: false, message: 'Course title is required.' };
   }
 
+  const playlistUrl = payload.youtube_playlist_url?.trim() || payload.playlistUrl?.trim() || '';
+  const price = normalizePricePkr(payload.price ?? payload.pricePKR);
+  const isPaid = typeof payload.is_paid === 'boolean'
+    ? payload.is_paid
+    : Boolean(payload.requiresPayment ?? price > 0);
+
   const course = hydrateCourse({
-    ...payload,
     id: `${slugify(title)}-${Date.now().toString(36)}`,
     title,
-    subject: payload.subject || 'Other',
-    category: payload.category || 'Aalim Course',
-    level: payload.level || 'Beginner',
-    duration: payload.duration || `${normalizeTotalLessons(payload.totalLessons)} hours`,
-    totalLessons: normalizeTotalLessons(payload.totalLessons),
     instructor: payload.instructor?.trim() || actor.name,
     description: payload.description?.trim() || 'New course draft.',
-    playlistUrl: payload.playlistUrl?.trim() || '',
-    thumbnail: payload.thumbnail || DEFAULT_THUMBNAIL,
-    createdAt: new Date().toISOString(),
+    price,
+    is_paid: isPaid,
+    youtube_playlist_url: playlistUrl,
+    thumbnail: payload.thumbnail?.trim() || DEFAULT_THUMBNAIL,
+    created_at: new Date().toISOString(),
+    freePreviewLessons: payload.freePreviewLessons,
+    lessons: Array.isArray(payload.lessons) ? payload.lessons : [],
     createdBy: actor.id,
     isCustom: true,
   });
@@ -830,18 +924,19 @@ export const editManagedCourse = (courseId, updates) => {
 
   const nextCourse = hydrateCourse({
     ...existing,
-    ...updates,
     title: updates.title?.trim() || existing.title,
     instructor: updates.instructor?.trim() || existing.instructor,
     description: updates.description?.trim() || existing.description,
-    subject: updates.subject || existing.subject,
-    category: updates.category || existing.category,
-    level: updates.level || existing.level,
-    totalLessons: normalizeTotalLessons(updates.totalLessons, existing.totalLessons),
+    price: normalizePricePkr(updates.price ?? existing.price),
+    is_paid: typeof updates.is_paid === 'boolean' ? updates.is_paid : existing.is_paid,
+    youtube_playlist_url: updates.youtube_playlist_url?.trim() || updates.playlistUrl?.trim() || existing.youtube_playlist_url,
+    thumbnail: updates.thumbnail?.trim() || existing.thumbnail,
+    created_at: existing.created_at,
+    freePreviewLessons: updates.freePreviewLessons ?? existing.freePreviewLessons,
     lessons: buildLessons({
       title: updates.title?.trim() || existing.title,
       totalLessons: normalizeTotalLessons(updates.totalLessons, existing.totalLessons),
-      playlistUrl: updates.playlistUrl || existing.playlistUrl,
+      playlistUrl: updates.youtube_playlist_url || updates.playlistUrl || existing.youtube_playlist_url,
       existingLessons: existing.lessons,
     }),
   });
@@ -854,16 +949,15 @@ export const editManagedCourse = (courseId, updates) => {
     overrides[courseId] = {
       ...overrides[courseId],
       title: nextCourse.title,
-      subject: nextCourse.subject,
       description: nextCourse.description,
       instructor: nextCourse.instructor,
-      playlistUrl: nextCourse.playlistUrl,
-      totalLessons: nextCourse.totalLessons,
-      level: nextCourse.level,
-      category: nextCourse.category,
-      duration: nextCourse.duration,
+      price: nextCourse.price,
+      is_paid: nextCourse.is_paid,
+      youtube_playlist_url: nextCourse.youtube_playlist_url,
       thumbnail: nextCourse.thumbnail,
+      created_at: nextCourse.created_at,
       lessons: nextCourse.lessons,
+      freePreviewLessons: nextCourse.freePreviewLessons,
     };
     setCourseOverrides(overrides);
   }

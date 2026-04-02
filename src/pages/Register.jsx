@@ -10,7 +10,7 @@ const inputStyle = {
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register } = useApp();
+  const { register, isSupabaseEnabled } = useApp();
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -18,14 +18,17 @@ export default function Register() {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     if (form.password.length < 8) {
       setError('Password must be at least 8 characters.');
@@ -37,17 +40,28 @@ export default function Register() {
       return;
     }
 
-    const result = register({
+    setLoading(true);
+
+    const result = await register({
       name: form.name,
       email: form.email,
       password: form.password,
     });
+
+    setLoading(false);
 
     if (!result.ok) {
       setError(result.message);
       return;
     }
 
+    if (result.needsEmailConfirmation) {
+      setSuccess(result.message);
+      setTimeout(() => navigate('/login'), 1600);
+      return;
+    }
+
+    setSuccess(result.message || 'Your student account has been created.');
     navigate('/');
   };
 
@@ -61,7 +75,7 @@ export default function Register() {
           </div>
           <h1 className="font-cinzel font-black text-3xl text-gold-400 mb-3">Create Account</h1>
           <p className="text-cream/55 font-crimson mb-6">
-            New registrations create student accounts. Teacher, admin, and super admin access stay on the built-in demo accounts for Ali Nawaz Academy.
+            New registrations create student accounts. Teacher, admin, and super admin access stay in the separate staff sign-in module for Ali Nawaz Academy.
           </p>
 
           <div className="rounded-xl p-5"
@@ -71,9 +85,9 @@ export default function Register() {
               <p className="font-cinzel text-gold-300 text-sm">What this gives you</p>
             </div>
             <div className="space-y-2 text-sm font-crimson text-cream/55">
-              <p>Personal student login stored in the browser.</p>
+              <p>{isSupabaseEnabled ? 'Your student login is created in Supabase Auth.' : 'Your student login is stored locally in this browser setup.'}</p>
               <p>Separate course progress, notes, streak, and certificates.</p>
-              <p>Instant access after sign-up with no backend required.</p>
+              <p>{isSupabaseEnabled ? 'If email confirmation is enabled, you will verify the account before signing in.' : 'Instant access is available right after sign-up.'}</p>
             </div>
           </div>
         </section>
@@ -147,7 +161,16 @@ export default function Register() {
               </div>
             )}
 
-            <button type="submit" className="btn-gold w-full py-3">Create Student Account</button>
+            {success && (
+              <div className="rounded-lg px-3 py-2 text-sm font-crimson text-emerald-200"
+                style={{ background: 'rgba(6,78,59,0.35)', border: '1px solid rgba(52,211,153,0.25)' }}>
+                {success}
+              </div>
+            )}
+
+            <button type="submit" disabled={loading} className="btn-gold w-full py-3 disabled:opacity-60">
+              {loading ? 'Creating Account...' : 'Create Student Account'}
+            </button>
           </form>
 
           <div className="gold-divider my-5" />

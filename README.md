@@ -1,220 +1,332 @@
 # Ali Nawaz Academy
 
-> A complete, production-ready Islamic Learning Management System (LMS)
-> Built with React + Tailwind CSS + localStorage — 100% frontend-only
+Ali Nawaz Academy is a React + Vite Islamic learning platform with separate student and staff login flows, playlist-based courses, payment-proof approval, certificate generation, and Supabase-backed authentication.
 
----
+## Features
 
-## ✨ Features
+- Student, Teacher, Admin, and Super Admin roles
+- Supabase email/password authentication
+- Student signup and forgot password flow
+- Teacher and staff login module
+- Admin payment approval dashboard
+- Dynamic payment QR code per student and course
+- Playlist-based courses with string course IDs like `mini-wudu-course`
+- Certificate generation with selectable templates, academy seal, and signature
+- Responsive UI for mobile, tablet, and desktop
 
-| Feature | Details |
-|---|---|
-| 📚 Course Catalog | 7 courses (Aalim: 6 subjects + Seerah) |
-| 🎥 YouTube Player | Embedded iframe player with lesson sidebar |
-| ✅ Progress Tracking | Per-lesson completion stored in localStorage |
-| 🔥 Streak System | Daily streak with 7-day calendar heatmap |
-| 📜 Certificates | Auto-generated, downloadable as PDF |
-| 👥 Role System | Student / Teacher / Admin / Super Admin (simulated) |
-| 📝 Lesson Notes | Per-lesson notes saved in localStorage |
-| 📊 Admin Analytics | Mock bar charts, student table, completion rates |
+## Tech Stack
 
----
+- React 18
+- Vite 5
+- React Router 6
+- Tailwind CSS 3
+- Supabase
+- `@supabase/supabase-js`
+- `qrcode`
+- `html2canvas`
+- `jspdf`
 
-## 🚀 Quick Start
+## Local Development
+
+Install dependencies and run the app:
 
 ```bash
-# 1. Clone / download this folder
-cd ali-nawaz-academy
-
-# 2. Install dependencies
 npm install
-
-# 3. Start dev server
 npm run dev
-
-# 4. Open browser at http://localhost:5173
 ```
 
----
+Production build:
 
-## 📁 Project Structure
-
-```
-ali-nawaz-academy/
-├── public/
-│   └── favicon.svg
-├── src/
-│   ├── data/
-│   │   └── courses.js          # All course & mock user data
-│   ├── utils/
-│   │   └── storage.js          # localStorage helpers + streak/progress logic
-│   ├── context/
-│   │   └── AppContext.jsx      # Global React state (enrollments, progress, streak)
-│   ├── components/
-│   │   ├── Navbar.jsx          # Top bar with role switcher
-│   │   ├── Sidebar.jsx         # Navigation drawer
-│   │   ├── VideoPlayer.jsx     # YouTube embed + lesson list
-│   │   ├── CourseCard.jsx      # Course tile component
-│   │   ├── ProgressBar.jsx     # Animated progress bar
-│   │   ├── StreakWidget.jsx     # Streak + 7-day calendar
-│   │   └── CertificateGenerator.jsx  # PDF certificate
-│   ├── pages/
-│   │   ├── Dashboard.jsx       # Main home dashboard
-│   │   ├── CourseList.jsx      # Browsable course catalog
-│   │   ├── CoursePlayer.jsx    # Course detail + video player
-│   │   ├── MyCourses.jsx       # Enrolled courses tracker
-│   │   ├── Certificates.jsx    # Certificate gallery
-│   │   ├── TeacherPanel.jsx    # Teacher course management
-│   │   └── AdminPanel.jsx      # Admin analytics + user management
-│   ├── App.jsx                 # Router + layout
-│   ├── main.jsx                # React entry
-│   └── index.css               # Global styles + CSS vars
-├── index.html
-├── tailwind.config.js
-├── vite.config.js
-├── vercel.json                 # Vercel SPA rewrites
-└── package.json
-```
-
----
-
-## 🎥 Adding Real YouTube Videos
-
-Open `src/data/courses.js` and replace the `videoId` in each lesson:
-
-```js
-// BEFORE (placeholder):
-{ id: 'q1', title: 'Introduction to Tajweed', videoId: 'dQw4w9WgXcQ', ... }
-
-// AFTER (real video):
-{ id: 'q1', title: 'Introduction to Tajweed', videoId: 'YOUR_REAL_VIDEO_ID', ... }
-```
-
-To get a YouTube video ID:
-- From `https://youtube.com/watch?v=ABC123xyz` → ID is `ABC123xyz`
-- From `https://youtu.be/ABC123xyz` → ID is `ABC123xyz`
-
----
-
-## 👥 Role Switching
-
-Click your role badge in the **top-right corner** of the navbar:
-
-| Role | Access |
-|---|---|
-| Student | Dashboard, Courses, My Learning, Certificates |
-| Teacher | + Teacher Panel (add courses, view mock students) |
-| Admin | + Admin Panel (analytics, user management) |
-| Super Admin | + Settings, certificate template, full control |
-
----
-
-## 🔥 Streak System Logic
-
-- Stored in `localStorage` under key `ali_nawaz_streak`
-- Updates automatically when a lesson is marked complete
-- **Increments** if the last study date was yesterday
-- **Resets to 1** if a day was missed
-- Displays 7-day heatmap in sidebar and dashboard widget
-
----
-
-## 📜 Certificate Download
-
-1. Enroll in a course → watch all lessons → mark each complete
-2. Click **"Claim Certificate"** button (appears when progress = 100%)
-3. Certificate auto-generates with:
-   - Student name (editable in navbar)
-   - Course name
-   - Completion date
-- Unique certificate ID (`ANA-XXXXXXXX`)
-4. Click **"Download Certificate (PDF)"**
-
----
-
-## 🚀 Deploy to Vercel
-
-### Option A — Vercel CLI (fastest)
 ```bash
-npm install -g vercel
-vercel login
-cd ali-nawaz-academy
-vercel --prod
+npm run build
 ```
 
-### Option B — GitHub + Vercel Dashboard
+Preview production build locally:
 
-1. **Push to GitHub**
 ```bash
-git init
-git add .
-git commit -m "feat: Ali Nawaz Academy initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/ali-nawaz-academy.git
-git push -u origin main
+npm run preview
 ```
 
-2. **Connect to Vercel**
-   - Go to [vercel.com](https://vercel.com) → New Project
-   - Import your GitHub repository
-   - Framework preset: **Vite**
-   - Build command: `npm run build`
-   - Output directory: `dist`
-   - Click **Deploy**
+## Environment Variables
 
-3. **Done!** Vercel auto-deploys on every push to main.
+Create a `.env` file in the project root and add:
 
----
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+VITE_SITE_URL=http://localhost:5173
 
-## 🎨 Customization
-
-### Colors (tailwind.config.js)
-```js
-colors: {
-  gold: { 400: '#fbbf24', 500: '#f59e0b', ... },
-  emerald: { 800: '#064e3b', ... }
-}
+VITE_PAYMENT_ACCOUNT_NAME=Ali Nawaz Online Academy
+VITE_PAYMENT_UPI_ID=your-upi-id@bank
+VITE_PAYMENT_CURRENCY=INR
 ```
 
-### Fonts (index.html + index.css)
-Currently using: **Cinzel** (headings), **Crimson Pro** (body), **Amiri** (Arabic)
+Notes:
 
-### Adding a New Course
-Add to the `COURSES` array in `src/data/courses.js`:
+- `VITE_SITE_URL` should be your real frontend URL in production.
+- The payment QR uses the logged-in student, selected course, and payment reference dynamically.
+- If Supabase env vars are missing, the app falls back to local browser mode for basic testing.
+
+## Supabase Role Rules
+
+The app maps protected staff access by email handle:
+
+- `moeedkamraan1123` -> `Admin`
+- `moeedkamraan1125` -> `Super Admin`
+
+Examples:
+
+- `moeedkamraan1123@gmail.com` becomes `Admin`
+- `moeedkamraan1125@gmail.com` becomes `Super Admin`
+
+Any other staff email can remain a normal `Teacher` account.
+
+## Final Supabase Schema
+
+This project is built around the following table structure and must stay aligned with it.
+
+### `profiles`
+
+- `id` uuid primary key
+- `name` text
+- `email` text
+- `role` text
+- `created_at` timestamp
+
+### `courses`
+
+- `id` text primary key
+- `title` text
+- `description` text
+- `price` int
+- `is_paid` boolean
+- `youtube_playlist_url` text
+- `thumbnail` text
+- `instructor` text
+- `created_at` timestamp
+
+### `enrollments`
+
+- `id` uuid primary key
+- `user_id` uuid
+- `course_id` text
+- `status` text
+- `created_at` timestamp
+
+### `payments`
+
+- `id` uuid primary key
+- `user_id` uuid
+- `course_id` text
+- `course_title` text
+- `amount` int
+- `status` text
+- `payer_name` text
+- `transaction_id` text
+- `payment_reference` text
+- `screenshot_url` text
+- `created_at` timestamp
+
+## Critical Schema Rules
+
+- `course_id` is always `text`
+- `courses.id` is always `text`
+- Course IDs are slug strings like `mini-wudu-course`
+- Do not use a foreign key for `payments.course_id`
+- Do not use a foreign key for `enrollments.course_id`
+- `payments.amount` must be `integer`
+- `payments.transaction_id` must be `text`
+- `payments.payment_reference` must be `text`
+- `payments.status` controls course unlocking
+
+## Supabase Setup
+
+### Option 1: New project
+
+If you are setting up a fresh Supabase project, run:
+
+- [supabase/schema.sql](/C:/Users/moham/Downloads/Kamraan/websites/Ali%20Nawaz/supabase/schema.sql)
+
+### Option 2: Existing project
+
+If your current project already has older tables or wrong column types, run:
+
+- [supabase/fix-existing-schema.sql](/C:/Users/moham/Downloads/Kamraan/websites/Ali%20Nawaz/supabase/fix-existing-schema.sql)
+
+This migration file is meant to fix the common problems:
+
+- `course_id` stored as `uuid` instead of `text`
+- missing `course_title` in `payments`
+- wrong integer/text column types in `payments`
+- leftover foreign keys on `course_id`
+- old profile fields such as `full_name` instead of `name`
+
+## Supabase Auth Setup
+
+In Supabase dashboard:
+
+1. Open `Authentication`
+2. Enable `Email` provider
+3. Disable `Disable new user signups` if students should register themselves
+4. Set `Site URL`
+5. Add redirect URLs
+
+Recommended redirect URLs:
+
+- `http://localhost:5173/forgot-password`
+- `https://your-domain.com/forgot-password`
+
+## Payment Flow
+
+Current flow:
+
+1. Student opens a paid course
+2. Student enrolls
+3. Student uploads payment screenshot
+4. Screenshot is uploaded to the `payments` storage bucket
+5. Payment row is inserted into `payments`
+6. Admin reviews it in the payment dashboard
+7. Admin approves payment
+8. App inserts an active row into `enrollments`
+9. Student gets full course access
+
+The QR code is generated dynamically from:
+
+- course ID
+- course title
+- logged-in user
+- payment reference
+- configured payment account details
+
+## Course Data Rules
+
+All courses in the app are normalized to this structure:
+
 ```js
 {
-  id: 'unique-id',
-  courseGroup: 'aalim',        // or 'seerah'
-  subject: 'Aqeedah',
-  title: 'Islamic Creed',
-  description: '...',
-  thumbnail: 'https://...',
-  instructor: 'Shaykh Name',
-  level: 'Beginner',
-  duration: '40 hours',
-  totalLessons: 8,
-  category: 'Aalim Course',   // or 'Seerah Course'
-  lessons: [
-    { id: 'aq1', title: 'Lesson Title', videoId: 'YT_ID', duration: '45:00', description: '...' },
-    // ...
-  ],
+  id: "mini-wudu-course",
+  title: "Wudu Mini Course",
+  description: "Course description",
+  price: 50,
+  is_paid: true,
+  youtube_playlist_url: "https://www.youtube.com/playlist?list=...",
+  thumbnail: "https://...",
+  instructor: "Ustadh Name",
+  created_at: "2026-04-02T00:00:00.000Z"
 }
 ```
 
----
+Important:
 
-## 🛠 Tech Stack
+- Do not create UUID course IDs
+- Always use string slugs for `id`
+- New courses added through the app are stored in this schema-first format
 
-- **React 18** — Functional components + hooks
-- **React Router v6** — Client-side navigation
-- **Tailwind CSS v3** — Utility-first styling
-- **Vite** — Lightning-fast dev server & bundler
-- **localStorage** — All data persistence (no backend)
-- **html2canvas + jsPDF** — Client-side PDF generation
+## Certificates
 
----
+Certificate system includes:
 
-## 📧 Support
+- multiple certificate templates
+- template preview inside the admin panel
+- theme switching
+- academy seal
+- bundled signature support
+- PDF export
 
-Built for the Ali Nawaz Academy Islamic e-learning platform.
-Contact: moeedkamraan1125@gmail.com
-GitHub: Dar-Ishfaq-Backend
+Admin and Super Admin can choose the active template and live preview it inside the website.
+
+## Project Structure
+
+```text
+Ali Nawaz/
+├── public/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   ├── context/
+│   ├── data/
+│   ├── pages/
+│   ├── utils/
+│   ├── App.jsx
+│   ├── main.jsx
+│   └── supabase.js
+├── supabase/
+│   ├── schema.sql
+│   └── fix-existing-schema.sql
+├── .env
+├── package.json
+├── README.md
+└── vercel.json
+```
+
+## Deployment
+
+Recommended production setup:
+
+- GitHub for source control
+- Vercel for frontend hosting
+- Supabase for auth, payments, profiles, courses, and enrollments
+
+### Vercel
+
+1. Push this repo to GitHub
+2. Import the repo into Vercel
+3. Framework preset: `Vite`
+4. Build command: `npm run build`
+5. Output directory: `dist`
+6. Add the same `.env` values in Vercel project settings
+7. Deploy
+
+## Troubleshooting
+
+### Error: `Could not find the 'course_title' column of 'payments'`
+
+Your live `payments` table is missing `course_title text`.
+
+Fix:
+
+- Run [supabase/fix-existing-schema.sql](/C:/Users/moham/Downloads/Kamraan/websites/Ali%20Nawaz/supabase/fix-existing-schema.sql)
+
+### Error: `invalid input syntax for type uuid: "mini-wudu-course"`
+
+Your `course_id` is still `uuid` somewhere or still tied to a foreign key.
+
+Fix:
+
+- `payments.course_id` must be `text`
+- `enrollments.course_id` must be `text`
+- remove foreign keys on `course_id`
+
+### Error: `invalid input syntax for type integer: "ANA-MINI-WUDU-COURSE-..."`
+
+One of your payment columns still has the wrong type.
+
+Fix:
+
+- `amount` must be `integer`
+- `transaction_id` must be `text`
+- `payment_reference` must be `text`
+
+### Quick schema check
+
+Run this in Supabase SQL Editor:
+
+```sql
+select table_name, column_name, data_type
+from information_schema.columns
+where table_name in ('profiles', 'courses', 'enrollments', 'payments')
+order by table_name, ordinal_position;
+```
+
+## Current Status
+
+The app currently supports:
+
+- real Supabase auth flow
+- schema-aligned text course IDs
+- payment screenshot upload
+- admin payment approval
+- dynamic QR code generation
+- responsive course and certificate UI
+
+Some non-critical dashboard features still use local browser state for convenience, but the payment and auth path is now structured around Supabase.

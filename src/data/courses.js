@@ -1,3 +1,5 @@
+import playlistMetadata from './youtubePlaylistMetadata.json';
+
 // ─────────────────────────────────────────────
 // Mock Course Database — Ali Nawaz Academy
 // Replace videoId values with real YouTube IDs
@@ -9,7 +11,185 @@ const PAID_COURSE_ACCESS = {
   currency: 'PKR',
 };
 
-export const COURSES = [
+const sanitizeLessonTitle = (title = '') => title
+  .replace(/^"+|"+$/g, '')
+  .replace(/\\u0026/g, '&')
+  .trim();
+
+const createPlaylistLessons = (key, prefix, description, { limit } = {}) => {
+  const source = playlistMetadata[key] || [];
+  const selectedLessons = source.slice(0, limit ?? source.length);
+
+  return selectedLessons.map((lesson, index) => ({
+    id: `${prefix}${index + 1}`,
+    title: sanitizeLessonTitle(lesson.title),
+    videoId: lesson.videoId,
+    duration: lesson.duration || '0:00',
+    description,
+  }));
+};
+
+const cloneLessonSeries = (lessons, prefix, description, { limit } = {}) => lessons
+  .slice(0, limit ?? lessons.length)
+  .map((lesson, index) => ({
+    ...lesson,
+    id: `${prefix}${index + 1}`,
+    description,
+  }));
+
+const DEFAULT_COURSE_CREATED_AT = '2026-04-02T00:00:00.000Z';
+
+const normalizeCoursePrice = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
+
+const normalizeCourseRecord = (course) => {
+  const price = normalizeCoursePrice(course.price ?? course.pricePKR);
+  const isPaid = typeof course.is_paid === 'boolean'
+    ? course.is_paid
+    : Boolean(course.requiresPayment ?? price > 0);
+  const youtubePlaylistUrl = course.youtube_playlist_url || course.playlistUrl || '';
+  const createdAt = course.created_at || course.createdAt || DEFAULT_COURSE_CREATED_AT;
+  const totalLessons = Math.max(1, Number.parseInt(course.totalLessons, 10) || course.lessons?.length || 1);
+  const freePreviewLessons = isPaid
+    ? Math.max(1, Math.min(totalLessons, Number.parseInt(course.freePreviewLessons, 10) || 3))
+    : totalLessons;
+
+  return {
+    ...course,
+    id: String(course.id),
+    price,
+    is_paid: isPaid,
+    youtube_playlist_url: youtubePlaylistUrl,
+    created_at: createdAt,
+    totalLessons,
+    requiresPayment: isPaid,
+    pricePKR: price,
+    playlistUrl: youtubePlaylistUrl,
+    createdAt,
+    freePreviewLessons,
+    thumbnail: course.thumbnail,
+    instructor: course.instructor,
+  };
+};
+
+const HADITH_LESSONS = createPlaylistLessons('aalim-hadith', 'h', 'A lesson from the Hadith sciences playlist.');
+const FIQH_LESSONS = createPlaylistLessons('aalim-fiqh', 'f', 'A lesson from the Hanafi fiqh playlist.');
+const SARF_LESSONS = createPlaylistLessons('aalim-sarf', 's', 'A lesson from the Arabic morphology playlist.', { limit: 8 });
+const NAHW_LESSONS = createPlaylistLessons('aalim-nahw', 'n', 'A lesson from the Arabic grammar playlist.', { limit: 10 });
+const ARABIC_LESSONS = createPlaylistLessons('aalim-arabic', 'a', 'A lesson from the Arabic language playlist.', { limit: 10 });
+const AQEEDAH_LESSONS = createPlaylistLessons('aalim-aqeedah', 'aq', 'A lesson from the Aqeedah playlist.', { limit: 10 });
+const TAFSIR_LESSONS = createPlaylistLessons('aalim-tafsir', 't', 'A lesson from the Tafsir playlist.', { limit: 12 });
+const SEERAH_LESSONS = createPlaylistLessons('seerah', 'se', 'A lesson from the Seerah playlist.', { limit: 12 });
+const DAILY_DUAS_LESSONS = createPlaylistLessons('short-daily-duas', 'sd', 'A short daily dua lesson.', { limit: 6 });
+const SALAH_BASICS_LESSONS = createPlaylistLessons('short-salah-basics', 'ss', 'A short salah basics lesson.', { limit: 5 });
+const RAMADAN_PREP_LESSONS = createPlaylistLessons('short-ramadan-prep', 'sr', 'A short Ramadan preparation lesson.', { limit: 4 });
+const QAIDA_FOUNDATIONS_LESSONS = [
+  {
+    id: 'qf1',
+    title: 'TOO MANY Tajweed Rules? Here\'s the ultimate solution - Arabic101 - Tajweed series',
+    videoId: 'kklrHE85hHE',
+    duration: '11:12',
+    description: 'An opening lesson that simplifies how beginners should approach Arabic Qaida and Tajweed study.',
+  },
+  {
+    id: 'qf2',
+    title: 'What do the symbols in Quran mean? - Arabic 101',
+    videoId: 'meQsEM3V2m8',
+    duration: '6:38',
+    description: 'Understand the main Quran reading symbols that appear while learning foundational recitation.',
+  },
+  {
+    id: 'qf3',
+    title: 'How to pronounce Hamza Wasl (همزة وصل) VS. Hamza Qat\' (همزة قطع) in the Holy Quran - Arabic 101',
+    videoId: 'iS31xI9JF2k',
+    duration: '13:49',
+    description: 'A practical pronunciation lesson that helps beginners recognise and sound key letter forms correctly.',
+  },
+  {
+    id: 'qf4',
+    title: 'How to PROPERLY pronounce the word (Allah) in the Holy Quran - Arabic 101',
+    videoId: '0paH22-NvzU',
+    duration: '5:46',
+    description: 'A focused recitation drill on one of the most important pronunciation patterns in Quran study.',
+  },
+  {
+    id: 'qf5',
+    title: 'Learn the Quranic Noon Sakinah (نون ساكنه) in 10 MINUTES - Arabic101',
+    videoId: 'hy8V7CsxaQk',
+    duration: '11:34',
+    description: 'A core beginner rule that supports smoother recitation and clearer Arabic letter recognition.',
+  },
+  {
+    id: 'qf6',
+    title: 'How to PROPERLY pronounce Meem (م) sakinah in the holy Quran? - Learn Tajweed - Arabic 101',
+    videoId: 'MAvDrZgWRTs',
+    duration: '10:30',
+    description: 'Build confidence with one of the most repeated recitation rules in beginner Quran reading.',
+  },
+];
+const TAJWEED_SKILL_BUILDER_LESSONS = [
+  {
+    id: 'tj1',
+    title: 'How to PROPERLY stop/ resume in longer Aya\'s in the Holy Quran - Arabic 101',
+    videoId: 'j3AR6-BThPU',
+    duration: '12:47',
+    description: 'Practice where to stop and resume correctly while reading longer ayat.',
+  },
+  {
+    id: 'tj2',
+    title: 'Madd (مد) in Quran MADE EASY - Arabic 101',
+    videoId: 'Q737ZCSbC_g',
+    duration: '14:04',
+    description: 'A dedicated walkthrough of elongation rules used regularly in Quran recitation.',
+  },
+  {
+    id: 'tj3',
+    title: 'Learn the Quranic Noon Sakinah (نون ساكنه) in 10 MINUTES - Arabic101',
+    videoId: 'hy8V7CsxaQk',
+    duration: '11:34',
+    description: 'Strengthen one of the most essential Tajweed topics with a practical rule-focused lesson.',
+  },
+  {
+    id: 'tj4',
+    title: 'How to PROPERLY pronounce Meem (م) sakinah in the holy Quran? - Learn Tajweed - Arabic 101',
+    videoId: 'MAvDrZgWRTs',
+    duration: '10:30',
+    description: 'A clear lesson on Meem Sakinah rules and how to apply them confidently.',
+  },
+  {
+    id: 'tj5',
+    title: 'How to deal with Letters with NO TASHKEEL in the Holy Quran - Arabic101 - Tajweed series',
+    videoId: '4g61PiwOQ2E',
+    duration: '10:18',
+    description: 'Learn how unmarked letters should be handled during recitation.',
+  },
+  {
+    id: 'tj6',
+    title: 'Quranic Qalqala (Echoing sounds) Explained - القلقلة - Tajweed series - Arabic 101',
+    videoId: 'thu6eZ-AeOA',
+    duration: '10:15',
+    description: 'A practical ending lesson on Qalqalah and its distinctive echoing sounds.',
+  },
+];
+const NAHW_BOOTCAMP_LESSONS = cloneLessonSeries(
+  NAHW_LESSONS,
+  'ng',
+  'A focused beginner Arabic grammar lesson selected for the Nahw bootcamp.',
+  { limit: 6 },
+);
+const SARF_DRILLS_LESSONS = cloneLessonSeries(
+  SARF_LESSONS,
+  'sp',
+  'A focused Arabic morphology lesson selected for pattern drills and practice.',
+  { limit: 6 },
+);
+const SPOKEN_ARABIC_KICKSTART_LESSONS = cloneLessonSeries(
+  ARABIC_LESSONS,
+  'ak',
+  'A beginner Arabic speaking lesson selected for day-one language confidence.',
+  { limit: 6 },
+);
+
+const RAW_COURSES = [
   {
     id: 'aalim-quran',
     courseGroup: 'aalim',
@@ -51,24 +231,13 @@ export const COURSES = [
     instructor: 'Mufti Yusuf al-Hanafi',
     level: 'Intermediate',
     duration: '90 hours',
-    totalLessons: 10,
+    totalLessons: HADITH_LESSONS.length,
     category: 'Aalim Course',
     ...PAID_COURSE_ACCESS,
     pricePKR: 7000,
     playlistId: 'PLViVR9emF28bKKOHB1wqDJYoEYlhzfZCE',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLViVR9emF28bKKOHB1wqDJYoEYlhzfZCE',
-    lessons: [
-      { id: 'h1', title: 'Introduction to Mustalah al-Hadith', videoId: 'dQw4w9WgXcQ', duration: '50:00', description: 'Terminology and classification of Hadith' },
-      { id: 'h2', title: 'Classification of Hadith', videoId: 'dQw4w9WgXcQ', duration: '45:30', description: 'Sahih, Hasan, Da\'if, Mawdu' },
-      { id: 'h3', title: 'The Six Major Collections', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'Bukhari, Muslim, Tirmidhi, Abu Dawud, Nasai, Ibn Majah' },
-      { id: 'h4', title: 'Science of Rijal — Narrator Criticism', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'Evaluating the reliability of narrators' },
-      { id: 'h5', title: 'Isnad Analysis', videoId: 'dQw4w9WgXcQ', duration: '42:00', description: 'Reading and verifying chains of narration' },
-      { id: 'h6', title: 'Arbain Nawawi — Selected Hadith', videoId: 'dQw4w9WgXcQ', duration: '65:00', description: '40 essential Hadith with commentary' },
-      { id: 'h7', title: 'Hadith and Fiqh', videoId: 'dQw4w9WgXcQ', duration: '52:00', description: 'How scholars derive rulings from Hadith' },
-      { id: 'h8', title: 'Contemporary Issues in Hadith', videoId: 'dQw4w9WgXcQ', duration: '44:00', description: 'Addressing modern misunderstandings' },
-      { id: 'h9', title: 'Hadith Authentication Workshop', videoId: 'dQw4w9WgXcQ', duration: '58:00', description: 'Practical exercises in verification' },
-      { id: 'h10', title: 'Final Examination Prep', videoId: 'dQw4w9WgXcQ', duration: '46:00', description: 'Review and practice assessment' },
-    ],
+    lessons: HADITH_LESSONS,
   },
   {
     id: 'aalim-fiqh',
@@ -80,28 +249,13 @@ export const COURSES = [
     instructor: 'Mufti Ibrahim Desai',
     level: 'Beginner → Advanced',
     duration: '150 hours',
-    totalLessons: 14,
+    totalLessons: FIQH_LESSONS.length,
     category: 'Aalim Course',
     ...PAID_COURSE_ACCESS,
     pricePKR: 7500,
     playlistId: 'PLDQHQxgPBUdYaYkjeemsL7yPNd1CdChxg',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLDQHQxgPBUdYaYkjeemsL7yPNd1CdChxg',
-    lessons: [
-      { id: 'f1', title: 'Introduction to Usul al-Fiqh', videoId: 'dQw4w9WgXcQ', duration: '52:00', description: 'Foundations of Islamic law' },
-      { id: 'f2', title: 'The Four Madhabs', videoId: 'dQw4w9WgXcQ', duration: '44:00', description: 'Hanafi, Maliki, Shafi\'i, Hanbali' },
-      { id: 'f3', title: 'Taharah — Purification', videoId: 'dQw4w9WgXcQ', duration: '60:00', description: 'Wudu, Ghusl, Tayammum rules' },
-      { id: 'f4', title: 'Salah — Prayer in Detail', videoId: 'dQw4w9WgXcQ', duration: '75:00', description: 'Complete Salah jurisprudence' },
-      { id: 'f5', title: 'Zakah & Sadaqah', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'Calculation and distribution' },
-      { id: 'f6', title: 'Sawm — Fasting Rules', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'Ramadan and voluntary fasting' },
-      { id: 'f7', title: 'Hajj & Umrah', videoId: 'dQw4w9WgXcQ', duration: '65:00', description: 'Complete pilgrimage guide' },
-      { id: 'f8', title: 'Nikah — Marriage Law', videoId: 'dQw4w9WgXcQ', duration: '58:00', description: 'Islamic marriage jurisprudence' },
-      { id: 'f9', title: 'Business Transactions (Muamalat)', videoId: 'dQw4w9WgXcQ', duration: '62:00', description: 'Halal and haram financial dealings' },
-      { id: 'f10', title: 'Islamic Finance Principles', videoId: 'dQw4w9WgXcQ', duration: '50:00', description: 'Riba, Gharar, and modern banking' },
-      { id: 'f11', title: 'Food & Halal Standards', videoId: 'dQw4w9WgXcQ', duration: '42:00', description: 'Slaughter, ingredients, and certification' },
-      { id: 'f12', title: 'Medical Jurisprudence', videoId: 'dQw4w9WgXcQ', duration: '54:00', description: 'Contemporary medical issues' },
-      { id: 'f13', title: 'Women\'s Fiqh', videoId: 'dQw4w9WgXcQ', duration: '56:00', description: 'Specific rulings for women' },
-      { id: 'f14', title: 'Final Review & Fatwa Writing', videoId: 'dQw4w9WgXcQ', duration: '70:00', description: 'How to issue a Fatwa' },
-    ],
+    lessons: FIQH_LESSONS,
   },
   {
     id: 'aalim-sarf',
@@ -119,16 +273,7 @@ export const COURSES = [
     pricePKR: 4500,
     playlistId: 'PLboKgKkarggP-TpYzNN0NsZ8XtsPtesWl',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLboKgKkarggP-TpYzNN0NsZ8XtsPtesWl',
-    lessons: [
-      { id: 's1', title: 'Introduction to Sarf', videoId: 'dQw4w9WgXcQ', duration: '38:00', description: 'What is Sarf and why it matters' },
-      { id: 's2', title: 'The Three-Letter Root (Fi\'l Mujarray)', videoId: 'dQw4w9WgXcQ', duration: '44:00', description: 'Building blocks of Arabic words' },
-      { id: 's3', title: 'Verb Conjugation — Past Tense', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'Fi\'l Madi in all forms' },
-      { id: 's4', title: 'Verb Conjugation — Present Tense', videoId: 'dQw4w9WgXcQ', duration: '45:00', description: 'Fi\'l Mudari in all forms' },
-      { id: 's5', title: 'Derived Verb Forms (Awzan)', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'The 10 major verb patterns' },
-      { id: 's6', title: 'Nouns — Ism and Types', videoId: 'dQw4w9WgXcQ', duration: '42:00', description: 'Masdar, Ism Fa\'il, Ism Maf\'ul' },
-      { id: 's7', title: 'Irregular Verbs (Af\'al Mu\'talla)', videoId: 'dQw4w9WgXcQ', duration: '50:00', description: 'Verbs with weak letters' },
-      { id: 's8', title: 'Sarf Practice & Application', videoId: 'dQw4w9WgXcQ', duration: '60:00', description: 'Quranic examples and practice' },
-    ],
+    lessons: SARF_LESSONS,
   },
   {
     id: 'aalim-nahw',
@@ -146,18 +291,7 @@ export const COURSES = [
     pricePKR: 5000,
     playlistId: 'PLvAM-d-YA8MdQXM9-2i5YGjn92Wdjrzfr',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLvAM-d-YA8MdQXM9-2i5YGjn92Wdjrzfr',
-    lessons: [
-      { id: 'n1', title: 'Introduction to Nahw & I\'rab', videoId: 'dQw4w9WgXcQ', duration: '40:00', description: 'What is grammatical parsing' },
-      { id: 'n2', title: 'Ism, Fi\'l, Harf', videoId: 'dQw4w9WgXcQ', duration: '38:00', description: 'The three parts of Arabic speech' },
-      { id: 'n3', title: 'Marfu\'at — Nominative Cases', videoId: 'dQw4w9WgXcQ', duration: '52:00', description: 'Subject, predicate, and more' },
-      { id: 'n4', title: 'Mansubat — Accusative Cases', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'Object, Hal, Tamyiz, and more' },
-      { id: 'n5', title: 'Majrurat — Genitive Cases', videoId: 'dQw4w9WgXcQ', duration: '44:00', description: 'Prepositions and Idafah' },
-      { id: 'n6', title: 'Jumlah Ismiyyah & Fi\'liyyah', videoId: 'dQw4w9WgXcQ', duration: '50:00', description: 'Nominal and verbal sentences' },
-      { id: 'n7', title: 'Nawasikh — Sentence Changers', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'Inna, Kana, and their sisters' },
-      { id: 'n8', title: 'Particles and Their Effects', videoId: 'dQw4w9WgXcQ', duration: '46:00', description: 'Huruf al-Nasb, Jazm, Jarr' },
-      { id: 'n9', title: 'Quranic I\'rab Practice', videoId: 'dQw4w9WgXcQ', duration: '62:00', description: 'Parsing selected Quranic verses' },
-      { id: 'n10', title: 'Final Parsing Workshop', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'Comprehensive I\'rab exercises' },
-    ],
+    lessons: NAHW_LESSONS,
   },
   {
     id: 'aalim-arabic',
@@ -175,18 +309,7 @@ export const COURSES = [
     pricePKR: 6000,
     playlistId: 'PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
-    lessons: [
-      { id: 'a1', title: 'Arabic Alphabet Mastery', videoId: 'dQw4w9WgXcQ', duration: '35:00', description: 'All letters, forms, and sounds' },
-      { id: 'a2', title: 'Vocabulary Building — Lesson 1', videoId: 'dQw4w9WgXcQ', duration: '40:00', description: '200 essential Arabic words' },
-      { id: 'a3', title: 'Reading Classical Texts', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'Introduction to classical prose' },
-      { id: 'a4', title: 'Arabic Conversation — Basics', videoId: 'dQw4w9WgXcQ', duration: '42:00', description: 'Speaking in everyday Arabic' },
-      { id: 'a5', title: 'Arabic Writing & Composition', videoId: 'dQw4w9WgXcQ', duration: '50:00', description: 'Essay structure and style' },
-      { id: 'a6', title: 'Balagha — Rhetoric & Style', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'Simile, metaphor, and eloquence' },
-      { id: 'a7', title: 'Quranic Arabic Analysis', videoId: 'dQw4w9WgXcQ', duration: '60:00', description: 'Unique features of Quranic language' },
-      { id: 'a8', title: 'Classical Poetry & Prose', videoId: 'dQw4w9WgXcQ', duration: '52:00', description: 'Reading Muallagat and classical works' },
-      { id: 'a9', title: 'Translation Workshop', videoId: 'dQw4w9WgXcQ', duration: '58:00', description: 'Arabic–English and back translation' },
-      { id: 'a10', title: 'Advanced Composition Practicum', videoId: 'dQw4w9WgXcQ', duration: '65:00', description: 'Final written assessment' },
-    ],
+    lessons: ARABIC_LESSONS,
   },
   {
     id: 'aalim-aqeedah',
@@ -204,18 +327,7 @@ export const COURSES = [
     pricePKR: 5000,
     playlistId: 'PLExCKwROz20Fx-CU6VpfWMKC5vEluvJ3R',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLExCKwROz20Fx-CU6VpfWMKC5vEluvJ3R',
-    lessons: [
-      { id: 'aq1', title: 'Introduction to Aqeedah', videoId: 'dQw4w9WgXcQ', duration: '36:00', description: 'Why creed matters in the life of a Muslim' },
-      { id: 'aq2', title: 'Tawhid — The Oneness of Allah', videoId: 'dQw4w9WgXcQ', duration: '42:00', description: 'Rububiyyah, Uluhiyyah, and the divine names' },
-      { id: 'aq3', title: 'Belief in the Angels', videoId: 'dQw4w9WgXcQ', duration: '34:00', description: 'The role of the angels in revelation and creation' },
-      { id: 'aq4', title: 'Belief in the Revealed Books', videoId: 'dQw4w9WgXcQ', duration: '40:00', description: 'Understanding divine scripture and the Quran' },
-      { id: 'aq5', title: 'Belief in the Messengers', videoId: 'dQw4w9WgXcQ', duration: '44:00', description: 'The mission and rank of the prophets' },
-      { id: 'aq6', title: 'Belief in the Last Day', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'Resurrection, judgment, paradise, and hellfire' },
-      { id: 'aq7', title: 'Qadr — Divine Decree', videoId: 'dQw4w9WgXcQ', duration: '39:00', description: 'How to understand destiny with balance and trust' },
-      { id: 'aq8', title: 'Faith, Doubt, and Certainty', videoId: 'dQw4w9WgXcQ', duration: '43:00', description: 'Protecting the heart and strengthening iman' },
-      { id: 'aq9', title: 'Common Errors in Belief', videoId: 'dQw4w9WgXcQ', duration: '37:00', description: 'Clarifying widespread misunderstandings' },
-      { id: 'aq10', title: 'Review of Foundational Beliefs', videoId: 'dQw4w9WgXcQ', duration: '45:00', description: 'A complete revision of the course essentials' },
-    ],
+    lessons: AQEEDAH_LESSONS,
   },
   {
     id: 'aalim-tafsir',
@@ -233,20 +345,7 @@ export const COURSES = [
     pricePKR: 6500,
     playlistId: 'PL9Uv4BWc1XeF0TT6XSC6cW_1DB4yT0jGA',
     playlistUrl: 'https://www.youtube.com/playlist?list=PL9Uv4BWc1XeF0TT6XSC6cW_1DB4yT0jGA',
-    lessons: [
-      { id: 't1', title: 'Introduction to Tafsir', videoId: 'dQw4w9WgXcQ', duration: '41:00', description: 'How scholars explain the Quran' },
-      { id: 't2', title: 'Makki and Madani Revelation', videoId: 'dQw4w9WgXcQ', duration: '38:00', description: 'The context behind Quranic revelation' },
-      { id: 't3', title: 'Surah al-Fatihah in Depth', videoId: 'dQw4w9WgXcQ', duration: '47:00', description: 'Themes, structure, and spiritual lessons' },
-      { id: 't4', title: 'Tafsir of Ayat al-Kursi', videoId: 'dQw4w9WgXcQ', duration: '45:00', description: 'Understanding one of the greatest verses' },
-      { id: 't5', title: 'Stories of the Prophets in the Quran', videoId: 'dQw4w9WgXcQ', duration: '52:00', description: 'Major narrative themes and lessons' },
-      { id: 't6', title: 'Quranic Guidance for Worship', videoId: 'dQw4w9WgXcQ', duration: '43:00', description: 'Prayer, fasting, charity, and devotion' },
-      { id: 't7', title: 'Moral Teachings of the Quran', videoId: 'dQw4w9WgXcQ', duration: '40:00', description: 'Purification of character through revelation' },
-      { id: 't8', title: 'The Quran on Society and Justice', videoId: 'dQw4w9WgXcQ', duration: '49:00', description: 'Ethics, responsibility, and communal guidance' },
-      { id: 't9', title: 'Parables and Imagery in the Quran', videoId: 'dQw4w9WgXcQ', duration: '44:00', description: 'How the Quran teaches through vivid language' },
-      { id: 't10', title: 'Reflection and Tadabbur', videoId: 'dQw4w9WgXcQ', duration: '37:00', description: 'Learning to engage deeply with the Quran' },
-      { id: 't11', title: 'Selected Tafsir Case Studies', videoId: 'dQw4w9WgXcQ', duration: '53:00', description: 'Applying tafsir principles to selected passages' },
-      { id: 't12', title: 'Final Review of Quranic Themes', videoId: 'dQw4w9WgXcQ', duration: '46:00', description: 'A guided recap of the major lessons' },
-    ],
+    lessons: TAFSIR_LESSONS,
   },
   {
     id: 'seerah',
@@ -264,20 +363,97 @@ export const COURSES = [
     pricePKR: 4000,
     playlistId: 'PLuUzuzAeLoSc3zdtfCnWTQ57itvPMGOgM',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLuUzuzAeLoSc3zdtfCnWTQ57itvPMGOgM',
-    lessons: [
-      { id: 'se1', title: 'Arabia Before Islam — Al-Jahiliyyah', videoId: 'dQw4w9WgXcQ', duration: '50:00', description: 'The world into which the Prophet ﷺ was born' },
-      { id: 'se2', title: 'The Birth & Early Life of the Prophet ﷺ', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'Amina, Abu Talib, and childhood' },
-      { id: 'se3', title: 'The First Revelation — Hira Cave', videoId: 'dQw4w9WgXcQ', duration: '48:00', description: 'The night that changed the world' },
-      { id: 'se4', title: 'The Early Makkan Period', videoId: 'dQw4w9WgXcQ', duration: '52:00', description: 'First believers and severe persecution' },
-      { id: 'se5', title: 'The Year of Grief & Isra Mi\'raj', videoId: 'dQw4w9WgXcQ', duration: '60:00', description: 'Losses and the miraculous night journey' },
-      { id: 'se6', title: 'The Hijrah to Madinah', videoId: 'dQw4w9WgXcQ', duration: '56:00', description: 'The great migration and its lessons' },
-      { id: 'se7', title: 'Building the Islamic State in Madinah', videoId: 'dQw4w9WgXcQ', duration: '54:00', description: 'Constitution, brotherhood, and masjid' },
-      { id: 'se8', title: 'The Major Battles', videoId: 'dQw4w9WgXcQ', duration: '70:00', description: 'Badr, Uhud, Khandaq — lessons and analysis' },
-      { id: 'se9', title: 'Treaty of Hudaybiyyah', videoId: 'dQw4w9WgXcQ', duration: '45:00', description: 'A victory disguised as compromise' },
-      { id: 'se10', title: 'Conquest of Makkah', videoId: 'dQw4w9WgXcQ', duration: '58:00', description: 'The greatest political achievement' },
-      { id: 'se11', title: 'The Final Sermon & Farewell Hajj', videoId: 'dQw4w9WgXcQ', duration: '62:00', description: 'The Prophet\'s ﷺ last message to humanity' },
-      { id: 'se12', title: 'The Prophet\'s ﷺ Legacy & Our Duty', videoId: 'dQw4w9WgXcQ', duration: '55:00', description: 'How to carry forward the Sunnah' },
-    ],
+    lessons: SEERAH_LESSONS,
+  },
+  {
+    id: 'qaida-foundations',
+    courseGroup: 'workshop',
+    subject: 'Arabic',
+    title: 'Arabic Qaida & Letter Sounds Foundations',
+    description: 'A short paid workshop for testing enrollments and approvals while giving students a structured starter path through letter sounds, Qaida awareness, and beginner recitation symbols.',
+    thumbnail: 'https://images.unsplash.com/photo-1513258496099-48168024aec0?w=600&q=80',
+    instructor: 'Ustadh Kareem Ahmad',
+    level: 'Beginner',
+    duration: '6 focused lessons',
+    totalLessons: QAIDA_FOUNDATIONS_LESSONS.length,
+    category: 'Workshop',
+    ...PAID_COURSE_ACCESS,
+    pricePKR: 1200,
+    playlistId: 'PL6TlMIZ5ylgqM4Uuu7iAhIeuSdF0v9yxo',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PL6TlMIZ5ylgqM4Uuu7iAhIeuSdF0v9yxo',
+    lessons: QAIDA_FOUNDATIONS_LESSONS,
+  },
+  {
+    id: 'tajweed-skill-builder',
+    courseGroup: 'workshop',
+    subject: 'Quran',
+    title: 'Tajweed Skill Builder Workshop',
+    description: 'A paid Tajweed practice workshop built around stopping rules, madd, noon sakinah, meem sakinah, and qalqalah so you can test the full payment approval flow with a practical Quran course.',
+    thumbnail: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?w=600&q=80',
+    instructor: 'Shaykh Abdullah al-Qari',
+    level: 'Beginner → Intermediate',
+    duration: '6 focused lessons',
+    totalLessons: TAJWEED_SKILL_BUILDER_LESSONS.length,
+    category: 'Workshop',
+    ...PAID_COURSE_ACCESS,
+    pricePKR: 1800,
+    playlistId: 'PL6TlMIZ5ylgqM4Uuu7iAhIeuSdF0v9yxo',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PL6TlMIZ5ylgqM4Uuu7iAhIeuSdF0v9yxo',
+    lessons: TAJWEED_SKILL_BUILDER_LESSONS,
+  },
+  {
+    id: 'nahw-grammar-bootcamp',
+    courseGroup: 'workshop',
+    subject: 'Nahw',
+    title: 'Arabic Grammar Bootcamp',
+    description: 'A compact paid Nahw track for testing course enrollments while giving students a beginner-friendly entry into Arabic grammar and sentence structure.',
+    thumbnail: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=600&q=80',
+    instructor: 'Mufti Madani Raza',
+    level: 'Beginner',
+    duration: '6 selected lessons',
+    totalLessons: NAHW_BOOTCAMP_LESSONS.length,
+    category: 'Workshop',
+    ...PAID_COURSE_ACCESS,
+    pricePKR: 1600,
+    playlistId: 'PLvAM-d-YA8MdQXM9-2i5YGjn92Wdjrzfr',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PLvAM-d-YA8MdQXM9-2i5YGjn92Wdjrzfr',
+    lessons: NAHW_BOOTCAMP_LESSONS,
+  },
+  {
+    id: 'sarf-pattern-drills',
+    courseGroup: 'workshop',
+    subject: 'Sarf',
+    title: 'Sarf Pattern Drills',
+    description: 'A short paid morphology course that helps students practice Arabic word patterns while giving you another clean flow to verify payments from the admin dashboard.',
+    thumbnail: 'https://images.unsplash.com/photo-1601037295119-f2c39fb40184?w=600&q=80',
+    instructor: 'Moulana Malik Mohsin Shehzad',
+    level: 'Beginner',
+    duration: '6 selected lessons',
+    totalLessons: SARF_DRILLS_LESSONS.length,
+    category: 'Workshop',
+    ...PAID_COURSE_ACCESS,
+    pricePKR: 1500,
+    playlistId: 'PLboKgKkarggP-TpYzNN0NsZ8XtsPtesWl',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PLboKgKkarggP-TpYzNN0NsZ8XtsPtesWl',
+    lessons: SARF_DRILLS_LESSONS,
+  },
+  {
+    id: 'spoken-arabic-kickstart',
+    courseGroup: 'workshop',
+    subject: 'Arabic',
+    title: 'Spoken Arabic Kickstart',
+    description: 'A short paid Arabic language course with beginner speaking lessons so you can test another playlist-backed enrollment path from student sign-in through admin approval.',
+    thumbnail: 'https://images.unsplash.com/photo-1565791380713-1756b9a05343?w=600&q=80',
+    instructor: 'Dr. Fatima al-Zahra',
+    level: 'Beginner',
+    duration: '6 selected lessons',
+    totalLessons: SPOKEN_ARABIC_KICKSTART_LESSONS.length,
+    category: 'Workshop',
+    ...PAID_COURSE_ACCESS,
+    pricePKR: 1500,
+    playlistId: 'PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
+    lessons: SPOKEN_ARABIC_KICKSTART_LESSONS,
   },
   {
     id: 'short-daily-duas',
@@ -298,14 +474,7 @@ export const COURSES = [
     isShortCourse: true,
     playlistId: 'PL5nHjmHggAVhlvtCS8Lw848ikBKLDWMNO',
     playlistUrl: 'https://www.youtube.com/playlist?list=PL5nHjmHggAVhlvtCS8Lw848ikBKLDWMNO',
-    lessons: [
-      { id: 'sd1', title: 'Morning and Evening Duas', videoId: 'dQw4w9WgXcQ', duration: '18:00', description: 'Essential supplications for the start and close of the day' },
-      { id: 'sd2', title: 'Duas Before and After Eating', videoId: 'dQw4w9WgXcQ', duration: '12:00', description: 'Simple daily duas with meaning and practice' },
-      { id: 'sd3', title: 'Travel and Home Duas', videoId: 'dQw4w9WgXcQ', duration: '14:00', description: 'Supplications for leaving, entering, and travelling' },
-      { id: 'sd4', title: 'Duas for Seeking Knowledge', videoId: 'dQw4w9WgXcQ', duration: '11:00', description: 'Invocations connected to study and beneficial knowledge' },
-      { id: 'sd5', title: 'Protection Duas', videoId: 'dQw4w9WgXcQ', duration: '15:00', description: 'Short duas for safety, anxiety, and hardship' },
-      { id: 'sd6', title: 'Revision and Memorization Session', videoId: 'dQw4w9WgXcQ', duration: '20:00', description: 'A guided review of the complete short-course collection' },
-    ],
+    lessons: DAILY_DUAS_LESSONS,
   },
   {
     id: 'short-salah-basics',
@@ -326,13 +495,7 @@ export const COURSES = [
     isShortCourse: true,
     playlistId: 'PL12lIy0Cbpjr6kzgaGyq-K_oVEjBOD04X',
     playlistUrl: 'https://www.youtube.com/playlist?list=PL12lIy0Cbpjr6kzgaGyq-K_oVEjBOD04X',
-    lessons: [
-      { id: 'ss1', title: 'Purification Before Salah', videoId: 'dQw4w9WgXcQ', duration: '16:00', description: 'Preparing for salah with cleanliness and intention' },
-      { id: 'ss2', title: 'Prayer Positions and Movements', videoId: 'dQw4w9WgXcQ', duration: '22:00', description: 'Standing, bowing, prostration, and sitting correctly' },
-      { id: 'ss3', title: 'Essential Recitations in Salah', videoId: 'dQw4w9WgXcQ', duration: '19:00', description: 'Surah al-Fatihah and the core spoken parts of prayer' },
-      { id: 'ss4', title: 'Common Mistakes in Prayer', videoId: 'dQw4w9WgXcQ', duration: '17:00', description: 'A short correction guide for frequent salah errors' },
-      { id: 'ss5', title: 'Complete Salah Walkthrough', videoId: 'dQw4w9WgXcQ', duration: '24:00', description: 'A start-to-finish review session for daily prayers' },
-    ],
+    lessons: SALAH_BASICS_LESSONS,
   },
   {
     id: 'short-ramadan-prep',
@@ -353,12 +516,7 @@ export const COURSES = [
     isShortCourse: true,
     playlistId: 'PLnv9ODvUmjGa18AKJoO0u6dKjm46PvctR',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLnv9ODvUmjGa18AKJoO0u6dKjm46PvctR',
-    lessons: [
-      { id: 'sr1', title: 'Preparing the Heart for Ramadan', videoId: 'dQw4w9WgXcQ', duration: '18:00', description: 'Setting intention and spiritual goals before Ramadan' },
-      { id: 'sr2', title: 'Organising Worship and Daily Routine', videoId: 'dQw4w9WgXcQ', duration: '21:00', description: 'Balancing Quran, salah, family, and rest' },
-      { id: 'sr3', title: 'Duas and Dhikr for Ramadan', videoId: 'dQw4w9WgXcQ', duration: '16:00', description: 'A practical guide to remembrance and supplication' },
-      { id: 'sr4', title: 'Sustaining Consistency Through the Month', videoId: 'dQw4w9WgXcQ', duration: '20:00', description: 'How to maintain beneficial habits until Eid and beyond' },
-    ],
+    lessons: RAMADAN_PREP_LESSONS,
   },
   {
     id: 'mini-wudu-course',
@@ -386,6 +544,8 @@ export const COURSES = [
     ],
   },
 ];
+
+export const COURSES = RAW_COURSES.map(normalizeCourseRecord);
 
 export const MOCK_STUDENTS = [
   { id: 'u1', name: 'Ahmad ibn Yusuf', email: 'ahmad@example.com', joinDate: '2024-09-01', coursesEnrolled: 3, lessonsCompleted: 28 },

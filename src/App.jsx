@@ -17,13 +17,34 @@ import ForgotPassword from './pages/ForgotPassword';
 import './index.css';
 
 function PublicOnlyRoute() {
-  const { isAuthenticated } = useApp();
+  const { authReady, isAuthenticated } = useApp();
+  if (!authReady) {
+    return (
+      <div className="geometric-bg min-h-screen flex items-center justify-center px-4">
+        <div className="glass-card px-6 py-5 text-center">
+          <p className="font-cinzel text-gold-400 text-sm tracking-[0.2em] mb-2">LOADING</p>
+          <p className="text-cream/55 font-crimson">Preparing your academy portal...</p>
+        </div>
+      </div>
+    );
+  }
   return isAuthenticated ? <Navigate to="/" replace /> : <Outlet />;
 }
 
 function ProtectedShell() {
-  const { isAuthenticated } = useApp();
+  const { authReady, isAuthenticated } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  if (!authReady) {
+    return (
+      <div className="geometric-bg min-h-screen flex items-center justify-center px-4">
+        <div className="glass-card px-6 py-5 text-center">
+          <p className="font-cinzel text-gold-400 text-sm tracking-[0.2em] mb-2">LOADING</p>
+          <p className="text-cream/55 font-crimson">Syncing your account...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -73,6 +94,7 @@ function AppRoutes() {
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/admin/users" element={<AdminPanel />} />
         <Route path="/admin/courses" element={<AdminPanel />} />
+        <Route path="/admin/payments" element={<AdminPanel />} />
         <Route path="/admin/settings" element={<AdminPanel />} />
         <Route path="*" element={<ProtectedNotFound />} />
       </Route>

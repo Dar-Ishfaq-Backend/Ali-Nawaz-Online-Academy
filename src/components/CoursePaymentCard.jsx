@@ -1,22 +1,108 @@
-import { useMemo, useState } from 'react';
-import { CheckCircle2, CreditCard, QrCode, ShieldCheck } from 'lucide-react';
-import upiQrImage from '../assets/upi-payment-qr.jpeg';
+import { useEffect, useMemo, useState } from 'react';
+import QRCode from 'qrcode';
+import { CreditCard, QrCode, ShieldCheck } from 'lucide-react';
 import { COURSE_PAYMENT_DETAILS } from '../utils/paymentConfig';
+import { useApp } from '../context/AppContext';
+import { supabase } from '../supabase';
 
 const formatPKR = (amount) => `PKR ${new Intl.NumberFormat('en-PK').format(Math.max(0, Number(amount) || 0))}`;
 
-export default function CoursePaymentCard({ course, payment, onUnlock }) {
+const buildReference = (course, currentUser) => (
+  `ANA-${course.id}-${(currentUser?.id || 'guest').slice(0, 8)}`
+    .replace(/[^A-Za-z0-9-]/g, '')
+    .toUpperCase()
+);
+
+export default function CoursePaymentCard({ course, onUnlock }) {
+  const { currentUser } = useApp();
   const [payerName, setPayerName] = useState('');
   const [transactionId, setTransactionId] = useState('');
+  const [screenshot, setScreenshot] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const priceLabel = useMemo(() => formatPKR(course.pricePKR), [course.pricePKR]);
+  const [submitting, setSubmitting] = useState(false);
+  const [qrImageUrl, setQrImageUrl] = useState('');
+  const coursePrice = Math.max(0, Number(course.price) || 0);
 
-  const handleSubmit = (event) => {
+  const priceLabel = useMemo(() => formatPKR(coursePrice), [coursePrice]);
+  const paymentReference = useMemo(() => buildReference(course, currentUser), [course, currentUser]);
+  const studentEmail = currentUser?.email || 'student@alinawaz.academy';
+
+  const paymentNote = useMemo(() => (
+    `Ali Nawaz Academy | ${course.title} | ${studentEmail} | ${paymentReference}`
+  ), [course.title, paymentReference, studentEmail]);
+
+  const paymentPayload = useMemo(() => (
+    `upi://pay?pa=${encodeURIComponent(COURSE_PAYMENT_DETAILS.upiId)}`
+    + `&pn=${encodeURIComponent(COURSE_PAYMENT_DETAILS.accountName)}`
+    + `&tr=${encodeURIComponent(paymentReference)}`
+    + `&tn=${encodeURIComponent(paymentNote)}`
+    + `&am=${encodeURIComponent(String(coursePrice))}`
+    + `&cu=${encodeURIComponent(COURSE_PAYMENT_DETAILS.currency)}`
+  ), [coursePrice, paymentNote, paymentReference]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    QRCode.toDataURL(paymentPayload, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      scale: 10,
+      color: {
+        dark: '#052e1b',
+        light: '#f8f3e9',
+      },
+    })
+      .then((url) => {
+        if (!cancelled) {
+          setQrImageUrl(url);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQrImageUrl('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentPayload]);
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const result = onUnlock({
+    setFeedback(null);
+    setSubmitting(true);
+
+    if (!screenshot) {
+      setSubmitting(false);
+      setFeedback({ type: 'error', text: 'Please upload the payment screenshot before submitting.' });
+      return;
+    }
+
+    const fileName = `${currentUser?.id || 'guest'}-${Date.now()}-${screenshot.name}`.replace(/\s+/g, '-');
+
+    const { error: uploadError } = await supabase.storage
+      .from('payments')
+      .upload(fileName, screenshot, { upsert: false });
+
+    if (uploadError) {
+      setSubmitting(false);
+      setFeedback({ type: 'error', text: uploadError.message });
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from('payments')
+      .getPublicUrl(fileName);
+
+    const result = await onUnlock({
       payerName,
       transactionId,
+      screenshotUrl: data.publicUrl,
+      paymentReference,
     });
+
+    setSubmitting(false);
 
     if (!result.ok) {
       setFeedback({ type: 'error', text: result.message });
@@ -25,135 +111,81 @@ export default function CoursePaymentCard({ course, payment, onUnlock }) {
 
     setFeedback({
       type: 'success',
-      text: 'Paid lessons are now unlocked on this student account.',
+      text: 'Payment submitted. It is now waiting for admin approval.',
     });
     setPayerName('');
     setTransactionId('');
+    setScreenshot(null);
   };
-
-  if (payment?.unlockedAt) {
-    return (
-      <div className="glass-card p-5 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.24)' }}>
-            <CheckCircle2 size={18} className="text-emerald-400" />
-          </div>
-          <div>
-            <h3 className="font-cinzel font-bold text-gold-400 text-sm">Paid Access Active</h3>
-            <p className="text-sm font-crimson text-cream/55 mt-1">
-              This student account now has full access to all lessons in {course.title}.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-3 text-sm font-crimson">
-          <div className="rounded-xl px-3 py-3" style={{ background: 'rgba(6,78,59,0.14)', border: '1px solid rgba(16,185,129,0.14)' }}>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-gold-500/60 font-cinzel">Payer</p>
-            <p className="text-cream/75 mt-1">{payment.payerName}</p>
-          </div>
-          <div className="rounded-xl px-3 py-3" style={{ background: 'rgba(6,78,59,0.14)', border: '1px solid rgba(16,185,129,0.14)' }}>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-gold-500/60 font-cinzel">Reference</p>
-            <p className="text-cream/75 mt-1 break-all">{payment.transactionId}</p>
-          </div>
-        </div>
-
-        <p className="text-xs font-crimson text-emerald-300">
-          Unlocked on {new Date(payment.unlockedAt).toLocaleString()} for {priceLabel}.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="glass-card p-5 space-y-5">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
-          <CreditCard size={18} className="text-gold-400" />
-        </div>
+        <CreditCard className="text-gold-400" />
         <div>
-          <h3 className="font-cinzel font-bold text-gold-400 text-sm">Unlock Full Course Access</h3>
-          <p className="text-sm font-crimson text-cream/55 mt-1">
-            Your student account includes the first {course.freePreviewLessons} lessons free. Pay once to continue the full course.
+          <h3 className="text-gold-400 text-sm font-cinzel">Unlock Full Course</h3>
+          <p className="text-sm text-cream/55 font-crimson">
+            Submit the course payment details for {priceLabel} and attach the payment proof below.
           </p>
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-[220px,1fr] gap-4 items-start">
-        <div className="rounded-2xl p-3"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <img src={upiQrImage} alt="UPI payment QR code" className="w-full rounded-2xl object-cover" />
-          <div className="mt-3 space-y-2 text-xs font-crimson">
-            <div className="flex items-center gap-2 text-gold-400">
-              <QrCode size={13} />
-              <span>{COURSE_PAYMENT_DETAILS.note}</span>
+      <div className="grid md:grid-cols-[180px,1fr] gap-4 items-start">
+        <div className="rounded-2xl p-3 flex items-center justify-center" style={{ background: 'rgba(248,243,233,0.96)' }}>
+          {qrImageUrl ? (
+            <img src={qrImageUrl} alt="Course payment QR code" className="w-40 rounded-xl" />
+          ) : (
+            <div className="w-40 h-40 rounded-xl flex items-center justify-center bg-emerald-950/10 text-emerald-950/70">
+              <QrCode size={28} />
             </div>
-            <p className="text-cream/55">Account Holder: {COURSE_PAYMENT_DETAILS.accountName}</p>
-            <p className="text-cream/55 break-all">UPI ID: {COURSE_PAYMENT_DETAILS.upiId}</p>
-          </div>
+          )}
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl p-4"
-            style={{ background: 'rgba(6,78,59,0.16)', border: '1px solid rgba(16,185,129,0.12)' }}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-gold-500/60 font-cinzel">Course Fee</p>
-                <p className="font-cinzel font-black text-2xl text-gold-400 mt-1">{priceLabel}</p>
-              </div>
-              <div className="rounded-xl px-3 py-2 text-xs font-crimson text-emerald-300"
-                style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.18)' }}>
-                Student account unlock
-              </div>
-            </div>
-            <p className="text-xs font-crimson text-cream/45 mt-3">
-              This is a temporary manual unlock flow for the current student account. You can replace it later with your final payment system.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">PAYER NAME</label>
-              <input
-                value={payerName}
-                onChange={(event) => setPayerName(event.target.value)}
-                placeholder="Enter the payer name"
-                className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
-                style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">TRANSACTION / REFERENCE ID</label>
-              <input
-                value={transactionId}
-                onChange={(event) => setTransactionId(event.target.value)}
-                placeholder="Paste the payment reference from your app"
-                className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
-                style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
-                required
-              />
-            </div>
-
-            {feedback && (
-              <div className={`rounded-xl px-3 py-2 text-sm font-crimson ${feedback.type === 'success' ? 'text-emerald-200' : 'text-red-200'}`}
-                style={{
-                  background: feedback.type === 'success' ? 'rgba(6,78,59,0.35)' : 'rgba(127,29,29,0.35)',
-                  border: feedback.type === 'success' ? '1px solid rgba(52,211,153,0.25)' : '1px solid rgba(248,113,113,0.25)',
-                }}>
-                {feedback.text}
-              </div>
-            )}
-
-            <button type="submit" className="btn-gold w-full py-3 inline-flex items-center justify-center gap-2">
-              <ShieldCheck size={15} />
-              Confirm Payment & Unlock
-            </button>
-          </form>
+        <div className="space-y-2 text-sm font-crimson text-cream/60">
+          <p><span className="text-gold-400">Account:</span> {COURSE_PAYMENT_DETAILS.accountName}</p>
+          <p><span className="text-gold-400">UPI ID:</span> {COURSE_PAYMENT_DETAILS.upiId}</p>
+          <p><span className="text-gold-400">Reference:</span> {paymentReference}</p>
+          <p><span className="text-gold-400">Course:</span> {course.title}</p>
+          <p><span className="text-gold-400">Student:</span> {studentEmail}</p>
         </div>
       </div>
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <input
+          value={payerName}
+          onChange={(event) => setPayerName(event.target.value)}
+          placeholder="Payer name"
+          className="w-full p-2.5 rounded-lg bg-black/20 text-cream border border-gold-500/15 outline-none font-crimson"
+          required
+        />
+
+        <input
+          value={transactionId}
+          onChange={(event) => setTransactionId(event.target.value)}
+          placeholder="Transaction ID / UTR"
+          className="w-full p-2.5 rounded-lg bg-black/20 text-cream border border-gold-500/15 outline-none font-crimson"
+          required
+        />
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(event) => setScreenshot(event.target.files?.[0] || null)}
+          className="w-full text-sm font-crimson text-cream/60"
+          required
+        />
+
+        {feedback && (
+          <p className={feedback.type === 'success' ? 'text-green-400 text-sm font-crimson' : 'text-red-400 text-sm font-crimson'}>
+            {feedback.text}
+          </p>
+        )}
+
+        <button type="submit" disabled={submitting} className="btn-gold w-full flex justify-center gap-2 disabled:opacity-60">
+          <ShieldCheck size={16} />
+          {submitting ? 'Submitting Payment...' : 'Submit Payment'}
+        </button>
+      </form>
     </div>
   );
 }

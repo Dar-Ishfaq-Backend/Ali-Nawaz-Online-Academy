@@ -6,13 +6,12 @@ import ProgressBar from '../components/ProgressBar';
 
 const EMPTY_FORM = {
   title: '',
-  subject: '',
   description: '',
   instructor: '',
-  playlistUrl: '',
-  totalLessons: '1',
-  level: 'Beginner',
-  category: 'Aalim Course',
+  youtube_playlist_url: '',
+  thumbnail: '',
+  price: '0',
+  is_paid: true,
 };
 
 export default function TeacherPanel() {
@@ -57,13 +56,12 @@ export default function TeacherPanel() {
     setEditingCourseId(course.id);
     setCourseForm({
       title: course.title,
-      subject: course.subject,
       description: course.description,
       instructor: course.instructor,
-      playlistUrl: course.playlistUrl || '',
-      totalLessons: String(course.totalLessons),
-      level: course.level,
-      category: course.category,
+      youtube_playlist_url: course.youtube_playlist_url || '',
+      thumbnail: course.thumbnail || '',
+      price: String(course.price ?? 0),
+      is_paid: Boolean(course.is_paid),
     });
     setTab('add');
     setFeedback(null);
@@ -72,9 +70,11 @@ export default function TeacherPanel() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    const isPaid = Boolean(courseForm.is_paid);
     const payload = {
       ...courseForm,
-      totalLessons: Number.parseInt(courseForm.totalLessons, 10) || 1,
+      price: isPaid ? (Number.parseInt(courseForm.price, 10) || 0) : 0,
+      is_paid: isPaid,
     };
 
     const result = editingCourseId
@@ -160,11 +160,13 @@ export default function TeacherPanel() {
                     </span>
                   </div>
                   <p className="text-cream/40 font-crimson text-xs">
-                    {course.subject} · {course.totalLessons} lessons · {course.instructor}
+                    {course.totalLessons} lessons · {course.instructor}
                   </p>
                   <div className="flex gap-2 mt-2">
-                    <span className="badge badge-emerald text-[9px]">{course.level}</span>
-                    <span className="badge badge-gold text-[9px]">{course.category}</span>
+                    <span className={`badge text-[9px] ${course.is_paid ? 'badge-red' : 'badge-emerald'}`}>
+                      {course.is_paid ? `PKR ${course.price}` : 'Free'}
+                    </span>
+                    {course.youtube_playlist_url && <span className="badge badge-gold text-[9px]">YouTube Playlist</span>}
                     {course.createdBy === currentUser?.id && <span className="badge badge-emerald text-[9px]">Created By You</span>}
                   </div>
                 </div>
@@ -311,70 +313,50 @@ export default function TeacherPanel() {
               <div>
                 <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">YOUTUBE URL</label>
                 <input
-                  value={courseForm.playlistUrl}
-                  onChange={(e) => handleFieldChange('playlistUrl', e.target.value)}
-                  placeholder="https://youtube.com/watch?v=..."
+                  value={courseForm.youtube_playlist_url}
+                  onChange={(e) => handleFieldChange('youtube_playlist_url', e.target.value)}
+                  placeholder="https://www.youtube.com/playlist?list=..."
                   className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
                   style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">TOTAL LESSONS</label>
+                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">THUMBNAIL URL</label>
                 <input
-                  type="number"
-                  min="1"
-                  value={courseForm.totalLessons}
-                  onChange={(e) => handleFieldChange('totalLessons', e.target.value)}
-                  required
+                  value={courseForm.thumbnail}
+                  onChange={(e) => handleFieldChange('thumbnail', e.target.value)}
+                  placeholder="https://example.com/course-cover.jpg"
                   className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
                   style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
                 />
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">SUBJECT</label>
-                <select
-                  value={courseForm.subject}
-                  onChange={(e) => handleFieldChange('subject', e.target.value)}
+                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">PRICE (PKR)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={courseForm.price}
+                  onChange={(e) => handleFieldChange('price', e.target.value)}
                   required
-                  className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream/80 outline-none"
-                  style={{ background: 'rgba(6,78,59,0.3)', border: '1px solid rgba(245,158,11,0.2)' }}
-                >
-                  <option value="" style={{ background: '#051a0f' }}>Select subject...</option>
-                  {['Quran', 'Hadith', 'Fiqh', 'Sarf', 'Nahw', 'Arabic', 'Seerah', 'Aqeedah', 'Other'].map((subject) => (
-                    <option key={subject} value={subject} style={{ background: '#051a0f' }}>{subject}</option>
-                  ))}
-                </select>
+                  className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
+                  style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">LEVEL</label>
+                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">ACCESS TYPE</label>
                 <select
-                  value={courseForm.level}
-                  onChange={(e) => handleFieldChange('level', e.target.value)}
+                  value={courseForm.is_paid ? 'paid' : 'free'}
+                  onChange={(e) => handleFieldChange('is_paid', e.target.value === 'paid')}
                   className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream/80 outline-none"
                   style={{ background: 'rgba(6,78,59,0.3)', border: '1px solid rgba(245,158,11,0.2)' }}
                 >
-                  {['Beginner', 'Intermediate', 'Advanced', 'All Levels'].map((level) => (
-                    <option key={level} value={level} style={{ background: '#051a0f' }}>{level}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">CATEGORY</label>
-                <select
-                  value={courseForm.category}
-                  onChange={(e) => handleFieldChange('category', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream/80 outline-none"
-                  style={{ background: 'rgba(6,78,59,0.3)', border: '1px solid rgba(245,158,11,0.2)' }}
-                >
-                  {['Aalim Course', 'Seerah Course', 'Short Course', 'Workshop'].map((category) => (
-                    <option key={category} value={category} style={{ background: '#051a0f' }}>{category}</option>
-                  ))}
+                  <option value="paid" style={{ background: '#051a0f' }}>Paid</option>
+                  <option value="free" style={{ background: '#051a0f' }}>Free</option>
                 </select>
               </div>
             </div>

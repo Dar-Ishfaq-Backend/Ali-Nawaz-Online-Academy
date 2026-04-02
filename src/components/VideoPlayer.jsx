@@ -107,7 +107,7 @@ const loadYouTubeIframeApi = () => {
   return youtubeIframeApiPromise;
 };
 
-export default function VideoPlayer({ course }) {
+export default function VideoPlayer({ course, accessOverride = false }) {
   const {
     role,
     completedLessons,
@@ -126,13 +126,14 @@ export default function VideoPlayer({ course }) {
   const [playerMessage, setPlayerMessage] = useState('');
   const [playerUnavailable, setPlayerUnavailable] = useState(false);
   const [fallbackPlayerActive, setFallbackPlayerActive] = useState(false);
+  const playlistUrl = course.youtube_playlist_url || course.playlistUrl || '';
   const usesDirectLessonVideos = useMemo(
     () => course.lessons.every((lesson) => lesson.videoId && lesson.videoId !== PLACEHOLDER_VIDEO_ID),
     [course.lessons],
   );
   const playlistId = useMemo(
-    () => (usesDirectLessonVideos ? '' : getPlaylistId(course.playlistUrl)),
-    [course.playlistUrl, usesDirectLessonVideos],
+    () => (usesDirectLessonVideos ? '' : getPlaylistId(playlistUrl)),
+    [playlistUrl, usesDirectLessonVideos],
   );
 
   const initialWatchState = normalizeWatchState(lessonWatchProgress[course.lessons[0]?.id]);
@@ -149,8 +150,9 @@ export default function VideoPlayer({ course }) {
   const progress = getCourseProgress(course);
   const activeLessonIndex = Math.max(0, course.lessons.findIndex((lesson) => lesson.id === activeLesson.id));
   const bypassWatchRequirement = role === 'Admin' || role === 'Super Admin';
-  const accessibleLessonCount = getAccessibleLessonCount(course, role);
-  const activeLessonAccessible = canAccessCourseLesson(course, activeLessonIndex, role);
+  const accessibleLessonCount = accessOverride ? course.lessons.length : getAccessibleLessonCount(course, role);
+  const canOpenLesson = (lessonIndex) => accessOverride || canAccessCourseLesson(course, lessonIndex, role);
+  const activeLessonAccessible = canOpenLesson(activeLessonIndex);
   const activeWatchPercent = watchState.percent;
   const activeLessonUnlocked = bypassWatchRequirement || activeWatchPercent >= LESSON_WATCH_THRESHOLD;
   const fallbackEmbedUrl = useMemo(() => buildFallbackEmbedUrl({
@@ -176,7 +178,11 @@ export default function VideoPlayer({ course }) {
       return formatDurationLabel(trackedDuration);
     }
 
-    return course.playlistUrl ? 'Syncing...' : lesson.duration;
+    if (usesDirectLessonVideos && lesson.duration) {
+      return lesson.duration;
+    }
+
+    return playlistUrl ? 'Syncing...' : lesson.duration;
   };
 
   const setLessonMessage = (message) => {
@@ -199,7 +205,7 @@ export default function VideoPlayer({ course }) {
 
   const selectLesson = (lesson) => {
     const lessonIndex = course.lessons.findIndex((entry) => entry.id === lesson.id);
-    if (!canAccessCourseLesson(course, lessonIndex, role)) {
+    if (!canOpenLesson(lessonIndex)) {
       setLessonMessage(
         `Only the first ${accessibleLessonCount} lesson${accessibleLessonCount !== 1 ? 's are' : ' is'} free. Pay to unlock the remaining course videos.`,
       );
@@ -230,7 +236,7 @@ export default function VideoPlayer({ course }) {
     if (!lesson) return;
 
     const lessonIndex = course.lessons.findIndex((entry) => entry.id === lesson.id);
-    if (!canAccessCourseLesson(course, lessonIndex, role)) return;
+    if (!canOpenLesson(lessonIndex)) return;
 
     if (!isComplete(lesson.id)) {
       markComplete(lesson.id, course.id);
@@ -319,7 +325,7 @@ export default function VideoPlayer({ course }) {
 
   const toggleLesson = (lesson, { shouldAdvance = false } = {}) => {
     const lessonIndex = course.lessons.findIndex((entry) => entry.id === lesson.id);
-    if (!canAccessCourseLesson(course, lessonIndex, role)) {
+    if (!canOpenLesson(lessonIndex)) {
       setLessonMessage('This lesson is locked for students until the course payment is confirmed.');
       return;
     }
@@ -364,11 +370,11 @@ export default function VideoPlayer({ course }) {
 
   useEffect(() => {
     if (activeLessonAccessible) return;
-    const firstOpenLesson = course.lessons.find((_, index) => canAccessCourseLesson(course, index, role));
+    const firstOpenLesson = course.lessons.find((_, index) => canOpenLesson(index));
     if (firstOpenLesson) {
       setActiveLesson(firstOpenLesson);
     }
-  }, [activeLessonAccessible, course, role]);
+  }, [accessOverride, activeLessonAccessible, course, role]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -619,10 +625,10 @@ export default function VideoPlayer({ course }) {
                 <span className="flex items-center gap-1 text-xs text-cream/40 font-crimson">
                   <Clock size={12} /> {getLessonDurationLabel(activeLesson)}
                 </span>
-                <span className="badge badge-emerald">{course.subject}</span>
-                {course.playlistUrl && (
+                <span className="badge badge-emerald">{course.instructor}</span>
+                {playlistUrl && (
                   <a
-                    href={course.playlistUrl}
+                    href={playlistUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs font-crimson text-gold-400 hover:text-gold-300 transition-colors"
@@ -683,7 +689,7 @@ export default function VideoPlayer({ course }) {
               const isActive = activeLesson.id === lesson.id;
               const lessonWatchPercent = getLessonWatchPercent(lesson.id);
               const lessonUnlocked = lessonWatchPercent >= LESSON_WATCH_THRESHOLD;
-              const lessonAccessible = canAccessCourseLesson(course, idx, role);
+              const lessonAccessible = canOpenLesson(idx);
 
               return (
                 <div key={lesson.id}

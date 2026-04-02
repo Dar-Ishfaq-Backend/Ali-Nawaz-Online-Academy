@@ -1,7 +1,10 @@
+
+import { supabase } from '../supabase'
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Users, BookOpen, Award, BarChart3, Shield, Settings, Activity, PencilLine, UserPlus, Upload, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import bundledSignature from '../assets/signature.png';
 import { getAnalytics } from '../utils/storage';
 import CertificateGenerator from '../components/CertificateGenerator';
 import ProgressBar from '../components/ProgressBar';
@@ -85,19 +88,28 @@ export default function AdminPanel() {
     toggleUserBlocked,
     platformSettings,
     certificateTemplates,
+    certificateThemes,
+    isSupabaseEnabled,
     savePlatformSettings,
   } = useApp();
+
+  const [payments, setPayments] = useState([])
+  const [filteredPayments, setFilteredPayments] = useState([])
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
   const [userForm, setUserForm] = useState(EMPTY_USER_FORM);
   const [feedback, setFeedback] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(platformSettings.certificateTemplate);
+  const [selectedTheme, setSelectedTheme] = useState(platformSettings.certificateTheme);
   const [selectedSignature, setSelectedSignature] = useState(platformSettings.certificateSignature || '');
   const signatureInputRef = useRef(null);
   const analytics = getAnalytics();
   const tab = useMemo(() => {
     if (location.pathname === '/admin/users') return 'users';
     if (location.pathname === '/admin/courses') return 'courses';
+    if (location.pathname === '/admin/payments') return 'payments';
     if (location.pathname === '/admin/settings') return 'settings';
     return 'analytics';
   }, [location.pathname]);
@@ -106,6 +118,7 @@ export default function AdminPanel() {
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/admin' },
     { id: 'users', label: 'Users', icon: Users, path: '/admin/users' },
     { id: 'courses', label: 'Courses', icon: BookOpen, path: '/admin/courses' },
+    { id: 'payments', label: 'Payments', icon: Activity, path: '/admin/payments' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
 
@@ -129,6 +142,12 @@ export default function AdminPanel() {
   const savedTemplateMeta = useMemo(() => (
     certificateTemplates.find((template) => template.id === platformSettings.certificateTemplate) || certificateTemplates[0]
   ), [certificateTemplates, platformSettings.certificateTemplate]);
+  const selectedThemeMeta = useMemo(() => (
+    certificateThemes.find((theme) => theme.id === selectedTheme) || certificateThemes[0]
+  ), [certificateThemes, selectedTheme]);
+  const savedThemeMeta = useMemo(() => (
+    certificateThemes.find((theme) => theme.id === platformSettings.certificateTheme) || certificateThemes[0]
+  ), [certificateThemes, platformSettings.certificateTheme]);
   const previewCertificate = useMemo(() => ({
     id: 'ANA-PREVIEW-001',
     studentName: 'Amina Yusuf',
@@ -137,18 +156,140 @@ export default function AdminPanel() {
   }), []);
   const savedSignature = platformSettings.certificateSignature || '';
   const templateChanged = selectedTemplate !== platformSettings.certificateTemplate;
+  const themeChanged = selectedTheme !== platformSettings.certificateTheme;
   const signatureChanged = selectedSignature !== savedSignature;
-  const settingsChanged = templateChanged || signatureChanged;
+  const settingsChanged = templateChanged || themeChanged || signatureChanged;
+
+  const fetchPayments = async () => {
+    if (!isSupabaseEnabled) {
+      setPayments([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      setFeedback({ type: 'error', text: error.message });
+      return;
+    }
+
+    const paymentsData = data || [];
+    const userIds = [...new Set(paymentsData.map((payment) => payment.user_id).filter(Boolean))];
+    let profilesById = {};
+
+    if (userIds.length > 0) {
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id,name,email')
+        .in('id', userIds);
+
+      if (profileError) {
+        setFeedback({ type: 'error', text: profileError.message });
+      } else {
+        profilesById = Object.fromEntries((profiles || []).map((profile) => [profile.id, profile]));
+      }
+    }
+
+    setPayments(paymentsData.map((payment) => ({
+      ...payment,
+      student_name: profilesById[payment.user_id]?.name || '',
+      student_email: profilesById[payment.user_id]?.email || '',
+    })));
+  };
+
+  const applyFilters = () => {
+    let result = [...payments];
+
+    if (search) {
+      const query = search.toLowerCase();
+      result = result.filter((payment) => (
+        payment.transaction_id?.toLowerCase().includes(query)
+        || payment.payer_name?.toLowerCase().includes(query)
+        || payment.student_email?.toLowerCase().includes(query)
+        || payment.student_name?.toLowerCase().includes(query)
+        || payment.course_title?.toLowerCase().includes(query)
+      ));
+    }
+
+    if (filter !== 'all') {
+      result = result.filter((payment) => payment.status === filter);
+    }
+
+    setFilteredPayments(result);
+  };
+
+  const approvePayment = async (payment) => {
+    const { error: paymentError } = await supabase
+      .from('payments')
+      .update({ status: 'approved' })
+      .eq('id', payment.id);
+
+    if (paymentError) {
+      setFeedback({ type: 'error', text: paymentError.message });
+      return;
+    }
+
+    const { error: enrollmentError } = await supabase
+      .from('enrollments')
+      .upsert([{
+        user_id: payment.user_id,
+        course_id: payment.course_id,
+        status: 'active',
+      }], { onConflict: 'user_id,course_id' });
+
+    if (enrollmentError) {
+      setFeedback({ type: 'error', text: enrollmentError.message });
+      return;
+    }
+
+    setFeedback({ type: 'success', text: 'Payment approved and course access activated.' });
+    fetchPayments();
+  };
+
+  const rejectPayment = async (payment) => {
+    const { error } = await supabase
+      .from('payments')
+      .update({ status: 'rejected' })
+      .eq('id', payment.id);
+
+    if (error) {
+      setFeedback({ type: 'error', text: error.message });
+      return;
+    }
+
+    setFeedback({ type: 'success', text: 'Payment marked as rejected.' });
+    fetchPayments();
+  };
 
   useEffect(() => {
     setSelectedTemplate(platformSettings.certificateTemplate);
   }, [platformSettings.certificateTemplate]);
 
   useEffect(() => {
+    setSelectedTheme(platformSettings.certificateTheme);
+  }, [platformSettings.certificateTheme]);
+
+  useEffect(() => {
     setSelectedSignature(platformSettings.certificateSignature || '');
   }, [platformSettings.certificateSignature]);
 
+  useEffect(() => {
+    if (tab === 'payments') {
+      fetchPayments();
+    }
+  }, [tab, isSupabaseEnabled]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [filter, payments, search]);
+
   if (role === 'Student' || role === 'Teacher') {
+
+    
+
     return (
       <div className="glass-card p-16 text-center animate-fade-in">
         <Shield size={40} className="text-cream/10 mx-auto mb-4" />
@@ -194,6 +335,9 @@ export default function AdminPanel() {
   };
 
   const handleUserSubmit = (e) => {
+  
+    
+
     e.preventDefault();
 
     const payload = {
@@ -235,14 +379,23 @@ export default function AdminPanel() {
   const handleSettingsSave = () => {
     const result = savePlatformSettings({
       certificateTemplate: selectedTemplate,
+      certificateTheme: selectedTheme,
       certificateSignature: selectedSignature,
     });
 
     let successText = 'Certificate settings are already live.';
-    if (templateChanged && signatureChanged) {
-      successText = 'Certificate template and signature are now live.';
+    if (templateChanged && themeChanged && signatureChanged) {
+      successText = 'Certificate template, theme, and signature are now live.';
+    } else if (templateChanged && themeChanged) {
+      successText = `${selectedTemplateMeta.name} with ${selectedThemeMeta.name} is now live.`;
+    } else if (themeChanged && signatureChanged) {
+      successText = `${selectedThemeMeta.name} and the live signature are now active.`;
+    } else if (templateChanged && signatureChanged) {
+      successText = `${selectedTemplateMeta.name} and the live signature are now active.`;
     } else if (templateChanged) {
       successText = `${selectedTemplateMeta.name} is now the active certificate template.`;
+    } else if (themeChanged) {
+      successText = `${selectedThemeMeta.name} is now the active certificate theme.`;
     } else if (signatureChanged) {
       successText = selectedSignature
         ? 'The certificate signature is now live.'
@@ -491,7 +644,6 @@ export default function AdminPanel() {
                         </div>
                         <div>
                           <p className="text-sm font-crimson text-cream/80">{user.name}</p>
-                          {user.isDemo && <p className="text-[10px] font-cinzel text-gold-500/60">DEMO</p>}
                         </div>
                       </div>
                     </td>
@@ -609,6 +761,116 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {tab === 'payments' && (
+        <div className="space-y-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-cinzel font-bold text-gold-400">Payment Verification Dashboard</h2>
+              <p className="text-sm font-crimson text-cream/40">
+                Review submitted payment proofs and approve course access for students.
+              </p>
+            </div>
+            {!isSupabaseEnabled && (
+              <span className="badge badge-red text-[10px] w-fit">Supabase not configured</span>
+            )}
+          </div>
+
+          <div className="flex gap-3 flex-col sm:flex-row">
+            <input
+              placeholder="Search by student, course, or transaction..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="px-3 py-2 rounded bg-black/30 text-white border border-gray-700 flex-1"
+            />
+
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              className="px-3 py-2 rounded bg-black/30 text-white border border-gray-700"
+            >
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+
+          {!isSupabaseEnabled && (
+            <div className="glass-card p-5">
+              <p className="text-sm font-crimson text-cream/50">
+                Add your Supabase environment keys before using the payment verification dashboard.
+              </p>
+            </div>
+          )}
+
+          {isSupabaseEnabled && filteredPayments.length === 0 && (
+            <div className="glass-card p-5">
+              <p className="text-sm font-crimson text-cream/50">
+                No payment submissions matched the current filter.
+              </p>
+            </div>
+          )}
+
+          {isSupabaseEnabled && filteredPayments.map((payment) => (
+            <div key={payment.id} className="glass-card p-4 flex flex-col xl:flex-row justify-between gap-4">
+              <div className="space-y-1 text-sm font-crimson text-cream/65 min-w-0">
+                <p><span className="text-gold-400">Student:</span> {payment.student_name || payment.student_email || payment.user_id}</p>
+                {payment.student_email && <p><span className="text-gold-400">Email:</span> {payment.student_email}</p>}
+                <p><span className="text-gold-400">Course:</span> {payment.course_title || payment.course_id}</p>
+                <p><span className="text-gold-400">Payer:</span> {payment.payer_name || 'Not provided'}</p>
+                <p><span className="text-gold-400">Transaction:</span> {payment.transaction_id}</p>
+                <p><span className="text-gold-400">Amount:</span> ₹{payment.amount}</p>
+                {payment.payment_reference && (
+                  <p><span className="text-gold-400">Reference:</span> {payment.payment_reference}</p>
+                )}
+                <p className="text-xs text-cream/35">
+                  Submitted {payment.created_at ? new Date(payment.created_at).toLocaleString() : 'recently'}
+                </p>
+                <span className={`inline-flex mt-2 text-xs px-2 py-1 rounded ${
+                  payment.status === 'approved'
+                    ? 'bg-green-600'
+                    : payment.status === 'rejected'
+                      ? 'bg-red-600'
+                      : 'bg-yellow-600'
+                }`}>
+                  {payment.status}
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                {payment.screenshot_url && (
+                  <img
+                    src={payment.screenshot_url}
+                    alt="Payment proof"
+                    className="w-28 h-28 object-cover rounded cursor-pointer"
+                    onClick={() => window.open(payment.screenshot_url, '_blank', 'noopener,noreferrer')}
+                  />
+                )}
+
+                {payment.status === 'pending' && (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => approvePayment(payment)}
+                      className="bg-green-600 px-3 py-2 rounded text-sm font-cinzel"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => rejectPayment(payment)}
+                      className="bg-red-600 px-3 py-2 rounded text-sm font-cinzel"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {tab === 'settings' && (
         <div className="space-y-5">
           <div>
@@ -625,10 +887,13 @@ export default function AdminPanel() {
                   <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">ACTIVE TEMPLATE</p>
                   <p className="font-cinzel font-bold text-gold-400">{savedTemplateMeta.name}</p>
                   <p className="text-xs text-cream/35 font-crimson mt-1">
-                    Save a new selection to update the live certificate design across the demo site on this browser.
+                    Save a new selection to update the live certificate design across this website.
                   </p>
                   <p className="text-xs text-cream/35 font-crimson mt-2">
-                    Live signature: {savedSignature ? 'PNG uploaded' : 'No signature uploaded yet'}
+                    Active theme: {savedThemeMeta.name}
+                  </p>
+                  <p className="text-xs text-cream/35 font-crimson mt-1">
+                    Live signature: {savedSignature ? 'Custom PNG uploaded' : 'Bundled signature.png'}
                   </p>
                 </div>
 
@@ -648,12 +913,13 @@ export default function AdminPanel() {
                           border: isSelected ? '1px solid rgba(245,158,11,0.45)' : '1px solid rgba(255,255,255,0.06)',
                         }}
                       >
-                        <div className="h-16 rounded-xl mb-3" style={{ background: template.swatch }} />
+                        <div className="h-16 rounded-xl mb-3" style={{ background: template.previewBackground }} />
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className={`font-cinzel font-bold text-sm ${isSelected ? 'text-gold-400' : 'text-cream/75'}`}>
                               {template.name}
                             </p>
+                            <p className="text-[11px] font-cinzel text-emerald-300/80 mt-1 uppercase tracking-[0.18em]">{template.style}</p>
                             <p className="text-xs font-crimson text-cream/35 mt-1">{template.description}</p>
                           </div>
                           {isSelected && <span className="badge badge-gold text-[10px]">Previewing</span>}
@@ -661,6 +927,42 @@ export default function AdminPanel() {
                       </button>
                     );
                   })}
+                </div>
+
+                <div
+                  className="rounded-2xl p-3 space-y-3"
+                  style={{ border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(6,78,59,0.08)' }}
+                >
+                  <div>
+                    <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">COLOR THEMES</p>
+                    <p className="text-xs text-cream/35 font-crimson">
+                      Apply a shared palette across every certificate template.
+                    </p>
+                  </div>
+
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {certificateThemes.map((theme) => {
+                      const isSelected = theme.id === selectedTheme;
+
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => setSelectedTheme(theme.id)}
+                          className={`rounded-2xl p-3 text-left transition-all ${isSelected ? 'bg-emerald-900/10' : 'hover:bg-emerald-900/5'}`}
+                          style={{
+                            border: isSelected ? '1px solid rgba(245,158,11,0.45)' : '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div className="h-14 rounded-xl mb-3" style={{ background: theme.swatch }} />
+                          <p className={`font-cinzel font-bold text-sm ${isSelected ? 'text-gold-400' : 'text-cream/75'}`}>
+                            {theme.name}
+                          </p>
+                          <p className="text-xs font-crimson text-cream/35 mt-1">{theme.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div
@@ -685,14 +987,11 @@ export default function AdminPanel() {
                         className="max-h-16 w-auto object-contain"
                       />
                     ) : (
-                      <div className="text-center space-y-1">
-                        <p className="text-xs text-cream/30 font-crimson">
-                          No signature selected yet
-                        </p>
-                        <p className="text-[11px] text-cream/25 font-crimson">
-                          PNG size should be below 2 MB
-                        </p>
-                      </div>
+                      <img
+                        src={bundledSignature}
+                        alt="Bundled certificate signature"
+                        className="max-h-16 w-auto object-contain"
+                      />
                     )}
                   </div>
 
@@ -725,7 +1024,7 @@ export default function AdminPanel() {
                   </div>
 
                   <p className="text-[11px] text-cream/30 font-crimson">
-                    Transparent PNGs look best. JPG and WebP uploads are converted to PNG automatically. Keep the saved PNG under 2 MB.
+                    Transparent PNGs look best. JPG and WebP uploads are converted to PNG automatically. If you do not upload one, the bundled `signature.png` is used by default.
                   </p>
                 </div>
 
@@ -748,7 +1047,10 @@ export default function AdminPanel() {
                     : 'Admin can preview the full certificate here before saving the live template.'}
                 </p>
                 <p className="text-xs text-cream/35 font-crimson mt-2">
-                  Preview signature: {selectedSignature ? 'Ready' : 'Not added'}
+                  Preview theme: {selectedThemeMeta.name}
+                </p>
+                <p className="text-xs text-cream/35 font-crimson mt-1">
+                  Preview signature: {selectedSignature ? 'Custom override ready' : 'Using bundled signature.png'}
                 </p>
               </div>
             </div>
@@ -758,6 +1060,7 @@ export default function AdminPanel() {
                 <div>
                   <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">LIVE WEBSITE PREVIEW</p>
                   <h3 className="font-cinzel font-bold text-gold-400">{selectedTemplateMeta.name}</h3>
+                  <p className="text-xs text-cream/35 font-crimson mt-1">{selectedThemeMeta.name}</p>
                 </div>
                 <span className="badge badge-emerald text-[10px] w-fit">Certificate Preview</span>
               </div>
@@ -765,6 +1068,7 @@ export default function AdminPanel() {
               <CertificateGenerator
                 cert={previewCertificate}
                 template={selectedTemplate}
+                theme={selectedTheme}
                 signatureImage={selectedSignature}
                 showDownload={false}
               />

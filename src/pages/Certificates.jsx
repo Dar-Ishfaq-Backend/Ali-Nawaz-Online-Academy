@@ -4,15 +4,16 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { LESSON_WATCH_THRESHOLD, canGenerateCertificate, getCourseProgress, getCourseWatchStats } from '../utils/storage';
 import CertificateGenerator from '../components/CertificateGenerator';
-import { getCertificateTemplateMeta, getCertificateTheme } from '../utils/certificateTemplates';
+import { getCertificateTemplateMeta, getCertificateThemeMeta } from '../utils/certificateTemplates';
 
 export default function Certificates() {
   const { role, certificates, enrollments, issueCert, courses, platformSettings } = useApp();
   const [viewing, setViewing] = useState(null);
   const [claimMessage, setClaimMessage] = useState('');
   const activeTemplate = platformSettings.certificateTemplate;
+  const activeTheme = platformSettings.certificateTheme;
   const activeTemplateMeta = useMemo(() => getCertificateTemplateMeta(activeTemplate), [activeTemplate]);
-  const activeTheme = useMemo(() => getCertificateTheme(activeTemplate), [activeTemplate]);
+  const activeThemeMeta = useMemo(() => getCertificateThemeMeta(activeTheme), [activeTheme]);
   const bypassWatchRequirement = role === 'Admin' || role === 'Super Admin';
 
   const completedNoCert = courses
@@ -30,7 +31,7 @@ export default function Certificates() {
           ← Back to Certificates
         </button>
         <h1 className="font-cinzel font-black text-2xl text-gold-400 mb-6">Your Certificate</h1>
-        <CertificateGenerator cert={viewing} template={activeTemplate} />
+        <CertificateGenerator cert={viewing} template={activeTemplate} theme={activeTheme} />
       </div>
     );
   }
@@ -41,6 +42,7 @@ export default function Certificates() {
         <h1 className="font-cinzel font-black text-2xl md:text-3xl text-gold-400 mb-1">Certificates</h1>
         <p className="text-cream/50 font-crimson">Your earned credentials</p>
         <p className="text-xs text-cream/30 font-crimson mt-2">Current certificate template: {activeTemplateMeta.name}</p>
+        <p className="text-xs text-cream/30 font-crimson mt-1">Current certificate theme: {activeThemeMeta.name}</p>
         {claimMessage && (
           <p className="text-xs text-gold-300 font-crimson mt-3">{claimMessage}</p>
         )}
@@ -136,15 +138,15 @@ export default function Certificates() {
               {/* Mini certificate preview */}
               <div className="w-full h-32 rounded-xl flex flex-col items-center justify-center certificate-border"
                 style={{
-                  background: activeTheme.surfaceBackground,
-                  '--certificate-border-color': activeTheme.border,
-                  '--certificate-border-inner': activeTheme.borderInnerShadow,
-                  '--certificate-border-outer': activeTheme.borderOuterShadow,
+                  background: activeThemeMeta.surfaceBackground,
+                  '--certificate-border-color': activeThemeMeta.border,
+                  '--certificate-border-inner': activeThemeMeta.borderInnerShadow,
+                  '--certificate-border-outer': activeThemeMeta.borderOuterShadow,
                 }}>
-                <p className="font-amiri text-lg" style={{ color: activeTheme.subtitle }}>بِسْمِ اللَّهِ</p>
-                <Award size={28} className="my-1" style={{ color: activeTheme.academy }} />
-                <p className="font-cinzel text-[10px] tracking-widest" style={{ color: activeTheme.academy }}>ALI NAWAZ ACADEMY</p>
-                <p className="font-cinzel text-[9px] tracking-[0.28em] mt-1" style={{ color: activeTheme.body }}>CERTIFICATE</p>
+                <p className="font-amiri text-lg" style={{ color: activeThemeMeta.subtitle }}>بِسْمِ اللَّهِ</p>
+                <Award size={28} className="my-1" style={{ color: activeThemeMeta.academy }} />
+                <p className="font-cinzel text-[10px] tracking-widest" style={{ color: activeThemeMeta.academy }}>ALI NAWAZ ACADEMY</p>
+                <p className="font-cinzel text-[9px] tracking-[0.28em] mt-1" style={{ color: activeThemeMeta.body }}>{activeTemplateMeta.name.toUpperCase()}</p>
               </div>
               <div>
                 <p className="font-cinzel font-bold text-gold-400 text-sm mb-0.5">{cert.courseName}</p>
@@ -153,6 +155,7 @@ export default function Certificates() {
                   {new Date(cert.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
                 <p className="text-cream/20 font-crimson text-[10px] mt-1">{activeTemplateMeta.name}</p>
+                <p className="text-cream/20 font-crimson text-[10px] mt-1">{activeThemeMeta.name}</p>
                 <p className="text-cream/20 font-crimson text-[10px] mt-1">{cert.id}</p>
               </div>
               <button className="btn-gold text-xs px-5 py-2 w-full">View & Download</button>
