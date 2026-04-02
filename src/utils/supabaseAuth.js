@@ -9,9 +9,13 @@ export const STAFF_ACCESS_RULES = [
   { identifier: 'moeedkamraan1125', role: 'Super Admin' },
   { identifier: 'dar1.ishfaq36@gmail.com', role: 'Super Admin' },
 ];
+const RETIRED_ACCOUNT_MESSAGES = new Map([
+  ['superadmin@alinawaz.academy', 'This legacy super admin account has been retired. Please use dar1.ishfaq36@gmail.com instead.'],
+]);
 
 const normalizeEmail = (value = '') => value.trim().toLowerCase();
 const isRole = (value) => ['Student', 'Teacher', 'Admin', 'Super Admin'].includes(value);
+const getRetiredAccountMessage = (email = '') => RETIRED_ACCOUNT_MESSAGES.get(normalizeEmail(email)) || '';
 
 const getSessionStorage = () => {
   try {
@@ -44,6 +48,17 @@ const clearSessionStore = () => {
   const storage = getSessionStorage();
   if (!storage) return;
   storage.removeItem(SESSION_STORAGE_KEY);
+};
+
+const clearSupabaseSession = async (accessToken = '') => {
+  if (accessToken) {
+    await requestSupabase('/auth/v1/logout', {
+      method: 'POST',
+      accessToken,
+    });
+  }
+
+  clearSessionStore();
 };
 
 const getSiteUrl = () => {
@@ -299,6 +314,15 @@ export const getSupabaseUser = async () => {
     return userResult;
   }
 
+  const retiredMessage = getRetiredAccountMessage(userResult.data?.email);
+  if (retiredMessage) {
+    await clearSupabaseSession(sessionResult.session.access_token);
+    return {
+      ok: false,
+      message: retiredMessage,
+    };
+  }
+
   const session = storeSession({
     ...sessionResult.session,
     user: userResult.data,
@@ -318,6 +342,11 @@ export const getSupabaseUser = async () => {
 };
 
 export const signInWithSupabase = async (email, password) => {
+  const retiredMessage = getRetiredAccountMessage(email);
+  if (retiredMessage) {
+    return { ok: false, message: retiredMessage };
+  }
+
   const result = await requestSupabase('/auth/v1/token?grant_type=password', {
     method: 'POST',
     body: {
@@ -343,6 +372,12 @@ export const signInWithSupabase = async (email, password) => {
 
 export const registerWithSupabase = async ({ name, email, password }) => {
   const normalizedEmail = normalizeEmail(email);
+  const retiredMessage = getRetiredAccountMessage(normalizedEmail);
+
+  if (retiredMessage) {
+    return { ok: false, message: retiredMessage };
+  }
+
   const result = await requestSupabase('/auth/v1/signup', {
     method: 'POST',
     body: {
@@ -426,13 +461,6 @@ export const updateSupabasePassword = async (newPassword) => {
 export const signOutSupabase = async () => {
   const session = getSessionStore();
 
-  if (session?.access_token) {
-    await requestSupabase('/auth/v1/logout', {
-      method: 'POST',
-      accessToken: session.access_token,
-    });
-  }
-
-  clearSessionStore();
+  await clearSupabaseSession(session?.access_token || '');
   return { ok: true };
 };

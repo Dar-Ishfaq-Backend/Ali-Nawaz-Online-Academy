@@ -229,11 +229,12 @@ const OttomanRoyalTemplate = ({ cert, palette, templateMeta, signatureSrc, sealS
     }
   >
     <div className="h-full flex flex-col justify-between gap-4 text-center">
-      <div className="space-y-2">
+      <div className="space-y-2 max-w-[34rem] mx-auto">
         <p className="font-amiri text-[1.1rem] sm:text-[1.5rem]" style={{ color: palette.academy }}>فرمان الإجازة</p>
-        <p className="font-cinzel font-black text-[1rem] sm:text-[1.65rem]" style={{ color: palette.academy, letterSpacing: '0.24em' }}>
-          OTTOMAN ROYAL CERTIFICATE
-        </p>
+        <div className="font-cinzel font-black leading-tight" style={{ color: palette.academy }}>
+          <p className="text-[0.92rem] sm:text-[1.35rem]" style={{ letterSpacing: '0.18em' }}>OTTOMAN ROYAL</p>
+          <p className="text-[0.9rem] sm:text-[1.28rem] mt-1" style={{ letterSpacing: '0.14em' }}>CERTIFICATE</p>
+        </div>
         <p className="font-crimson text-[0.84rem] sm:text-[0.96rem]" style={{ color: palette.subtitle }}>
           Issued by Ali Nawaz Academy in honor of disciplined sacred study
         </p>
@@ -243,7 +244,7 @@ const OttomanRoyalTemplate = ({ cert, palette, templateMeta, signatureSrc, sealS
         <div className="hidden sm:flex justify-start">
           <Rosette color={palette.ornament} accent={palette.border} className="w-20 h-20" />
         </div>
-        <div className="rounded-[30px] px-5 py-5 sm:px-10 sm:py-7" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
+        <div className="rounded-[30px] px-5 py-5 sm:px-8 sm:py-6" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
           <p className="font-amiri text-[1.05rem] sm:text-[1.35rem]" style={{ color: palette.academy }}>أكاديمية علي نواز</p>
           <p className="font-cinzel text-[0.75rem] sm:text-[0.96rem]" style={{ color: palette.heading, letterSpacing: '0.28em', textTransform: 'uppercase' }}>
             {templateMeta.name}

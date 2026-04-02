@@ -6,6 +6,7 @@ import CertificateCanvas from './certificates/CertificateCanvas';
 export default function CertificateGenerator({ cert, template, theme, signatureImage, onDownload, showDownload = true }) {
   const certRef = useRef(null);
   const palette = getCertificateThemeMeta(theme || cert.theme);
+  const isPreviewMode = !showDownload;
 
   const handleDownload = async () => {
     if (!certRef.current) return;
@@ -38,8 +39,8 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
   };
 
   return (
-    <div className="animate-fade-in">
-      <div ref={certRef}>
+    <div className={`animate-fade-in ${isPreviewMode ? 'overflow-x-auto pb-2' : ''}`}>
+      <div ref={certRef} className={isPreviewMode ? 'min-w-[880px]' : ''}>
         <CertificateCanvas
           cert={cert}
           template={template}

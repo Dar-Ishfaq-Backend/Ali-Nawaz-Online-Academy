@@ -18,6 +18,8 @@ const DEFAULT_THUMBNAIL = 'https://images.unsplash.com/photo-1609599006353-e629a
 export const LESSON_WATCH_THRESHOLD = 70;
 const DEFAULT_FREE_PREVIEW_LESSONS = 3;
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
+const LEGACY_REMOVED_USER_IDS = new Set(['demo-super-admin']);
+const LEGACY_REMOVED_USER_EMAILS = new Set(['superadmin@alinawaz.academy']);
 
 const ROLE_ORDER = {
   Student: 0,
@@ -80,16 +82,6 @@ const DEMO_USERS = [
     isDemo: true,
     blocked: false,
   },
-  {
-    id: 'demo-super-admin',
-    name: 'Ali Nawaz Owner',
-    email: 'superadmin@alinawaz.academy',
-    password: 'SuperAdmin123!',
-    role: 'Super Admin',
-    createdAt: '2026-03-29T00:00:00.000Z',
-    isDemo: true,
-    blocked: false,
-  },
 ];
 
 export const DEMO_ACCOUNTS = DEMO_USERS.map(({ id, name, email, password, role }) => ({
@@ -129,12 +121,16 @@ export const removeItem = (k) => {
 
 const mergeDemoUsers = (users = []) => {
   const map = new Map();
+  const cleanedUsers = users.filter((user) => (
+    !LEGACY_REMOVED_USER_IDS.has(user.id)
+    && !LEGACY_REMOVED_USER_EMAILS.has(normalizeEmail(user.email || ''))
+  ));
 
   DEMO_USERS.forEach((user) => {
     map.set(normalizeEmail(user.email), user);
   });
 
-  users.forEach((user) => {
+  cleanedUsers.forEach((user) => {
     map.set(normalizeEmail(user.email), user);
   });
 
@@ -170,7 +166,13 @@ export const setCurrentSessionUser = (userId, extra = {}) => {
 export const getCurrentUser = () => {
   const session = getCurrentSession();
   if (!session?.userId) return null;
-  return getUsers().find((user) => user.id === session.userId) || null;
+  const currentUser = getUsers().find((user) => user.id === session.userId) || null;
+
+  if (!currentUser && LEGACY_REMOVED_USER_IDS.has(session.userId)) {
+    removeItem('session');
+  }
+
+  return currentUser;
 };
 
 const getUserItemById = (userId, k, fallback = null) => getItem(`user_${userId}_${k}`, fallback);
