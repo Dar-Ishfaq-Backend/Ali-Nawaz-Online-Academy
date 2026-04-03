@@ -27,6 +27,20 @@ export const CERTIFICATE_TEMPLATES = [
     description: 'A heritage manuscript composition with scholarly framing and archival detailing.',
     previewBackground: 'linear-gradient(135deg, #161616 0%, #2f2a22 45%, #826c38 100%)',
   },
+  {
+    id: 'andalusian-noor',
+    name: 'Andalusian Noor',
+    style: 'Andalusian Madrasa',
+    description: 'A luminous Andalusian certificate with layered arches, geometry, and refined scholarly balance.',
+    previewBackground: 'linear-gradient(135deg, #071b1a 0%, #0f4e49 45%, #b88b2f 100%)',
+  },
+  {
+    id: 'safavid-script',
+    name: 'Safavid Script',
+    style: 'Persian Calligraphy',
+    description: 'A courtly Safavid-inspired layout with ceremonial calligraphy framing and manuscript poise.',
+    previewBackground: 'linear-gradient(135deg, #1b0b16 0%, #4b1e45 42%, #b38b38 100%)',
+  },
 ];
 
 export const CERTIFICATE_THEMES = [

@@ -39,8 +39,8 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
   };
 
   return (
-    <div className={`animate-fade-in ${isPreviewMode ? 'overflow-x-auto pb-2' : ''}`}>
-      <div ref={certRef} className={isPreviewMode ? 'min-w-[880px]' : ''}>
+    <div className={`animate-fade-in ${isPreviewMode ? 'overflow-x-auto overflow-y-visible pb-3' : ''}`}>
+      <div ref={certRef} className={isPreviewMode ? 'min-w-[1020px]' : ''}>
         <CertificateCanvas
           cert={cert}
           template={template}
