@@ -2,13 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, LogOut, Menu, Search, User } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-
-const StarOfDavid = () => (
-  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-    <polygon points="14,2 17.5,8.5 24.5,8.5 19,14 24.5,19.5 17.5,19.5 14,26 10.5,19.5 3.5,19.5 9,14 3.5,8.5 10.5,8.5" fill="none" stroke="#f59e0b" strokeWidth="1.5" />
-    <circle cx="14" cy="14" r="3" fill="#f59e0b" />
-  </svg>
-);
+import AcademyLogo from './AcademyLogo';
 
 const badgeMap = {
   Student: 'badge-emerald',
@@ -35,12 +29,12 @@ export default function Navbar({ onToggleSidebar }) {
         <Menu size={22} />
       </button>
 
-      <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
-        <StarOfDavid />
-        <div className="leading-none max-w-[150px] sm:max-w-none">
-          <div className="font-cinzel font-bold text-gold-400 text-[9px] sm:text-[11px] md:text-base tracking-[0.14em] sm:tracking-[0.18em] md:tracking-[0.2em]">ALI NAWAZ ACADEMY</div>
-          <div className="hidden sm:block text-emerald-400 text-[10px] font-crimson tracking-widest opacity-70">أكاديمية علي نواز</div>
-        </div>
+      <Link to="/" className="flex items-center flex-shrink-0 min-w-0">
+        <AcademyLogo
+          size="sm"
+          className="min-w-0"
+          imageClassName="h-11 w-11 sm:h-12 sm:w-12"
+        />
       </Link>
 
       <div className="flex-1" />

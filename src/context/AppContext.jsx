@@ -33,12 +33,14 @@ import {
   editManagedCourse,
   editManagedUser,
   enrollCourse as storageEnroll,
+  forceUnlockCourseCertificate as storageForceUnlockCertificate,
   issueCertificate as storageIssue,
   loginUser as storageLoginUser,
   logoutUser as storageLogoutUser,
   markLessonComplete as storageMarkComplete,
   markLessonIncomplete as storageMarkIncomplete,
   registerUser as storageRegisterUser,
+  resetCourseProgress as storageResetCourseProgress,
   resetUserPassword as storageResetUserPassword,
   saveLessonNote,
   setCurrentSessionUser,
@@ -314,6 +316,19 @@ export function AppProvider({ children }) {
     return result;
   }, [refreshState, state.studentName]);
 
+  const forceUnlockCert = useCallback((courseId, courseName) => {
+    const nextStudentName = state.studentName || state.currentUser?.name || 'Student';
+    const result = storageForceUnlockCertificate(courseId, courseName, nextStudentName);
+    if (result.ok) refreshState();
+    return result;
+  }, [refreshState, state.currentUser?.name, state.studentName]);
+
+  const resetCourseProgress = useCallback((courseId) => {
+    const result = storageResetCourseProgress(courseId);
+    if (result.ok) refreshState();
+    return result;
+  }, [refreshState]);
+
   const saveNote = useCallback((lessonId, text) => {
     saveLessonNote(lessonId, text);
     refreshState();
@@ -384,6 +399,8 @@ export function AppProvider({ children }) {
       markComplete,
       markIncomplete,
       issueCert,
+      forceUnlockCert,
+      resetCourseProgress,
       saveNote,
       updateWatchProgress,
       addUser,

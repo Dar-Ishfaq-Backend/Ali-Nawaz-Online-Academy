@@ -48,6 +48,31 @@ const normalizeProgressSeconds = (value) => {
   if (!Number.isFinite(numeric)) return 0;
   return Math.max(0, numeric);
 };
+const parseLessonDurationToSeconds = (value, fallback = 600) => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.round(value);
+  }
+
+  if (typeof value !== 'string' || !value.trim()) {
+    return fallback;
+  }
+
+  const segments = value.split(':').map((segment) => Number.parseInt(segment, 10));
+
+  if (segments.some((segment) => !Number.isFinite(segment) || segment < 0)) {
+    return fallback;
+  }
+
+  if (segments.length === 3) {
+    return (segments[0] * 3600) + (segments[1] * 60) + segments[2];
+  }
+
+  if (segments.length === 2) {
+    return (segments[0] * 60) + segments[1];
+  }
+
+  return segments[0] || fallback;
+};
 const normalizeSignatureImage = (value) => (
   typeof value === 'string' && value.startsWith(PNG_DATA_URL_PREFIX) ? value : ''
 );
@@ -285,21 +310,35 @@ const getCourseOverrides = () => getItem('platform_course_overrides', {});
 const setCourseOverrides = (overrides) => setItem('platform_course_overrides', overrides);
 const getCustomCourses = () => getItem('platform_custom_courses', []).map(hydrateCourse);
 const setCustomCourses = (courses) => setItem('platform_custom_courses', courses.map(serializeCourse));
+const CERTIFICATE_TEMPLATE_SCHEMA_VERSION = 2;
 const DEFAULT_PLATFORM_SETTINGS = {
   certificateTemplate: DEFAULT_CERTIFICATE_TEMPLATE,
   certificateTheme: DEFAULT_CERTIFICATE_THEME,
   certificateSignature: '',
+  certificateTemplateVersion: CERTIFICATE_TEMPLATE_SCHEMA_VERSION,
 };
+const LEGACY_DEFAULT_CERTIFICATE_TEMPLATE = 'ijazah-classic';
 
-const normalizePlatformSettings = (settings = {}) => ({
-  certificateTemplate: isCertificateTemplate(settings.certificateTemplate)
-    ? settings.certificateTemplate
+const normalizePlatformSettings = (settings = {}) => {
+  const incomingVersion = Number(settings.certificateTemplateVersion || 0);
+  const requestedTemplate = settings.certificateTemplate === LEGACY_DEFAULT_CERTIFICATE_TEMPLATE
+    ? DEFAULT_PLATFORM_SETTINGS.certificateTemplate
+    : settings.certificateTemplate;
+  const nextTemplate = incomingVersion < CERTIFICATE_TEMPLATE_SCHEMA_VERSION
+    ? DEFAULT_PLATFORM_SETTINGS.certificateTemplate
+    : requestedTemplate;
+
+  return ({
+    certificateTemplate: isCertificateTemplate(nextTemplate)
+    ? nextTemplate
     : DEFAULT_PLATFORM_SETTINGS.certificateTemplate,
-  certificateTheme: isCertificateTheme(settings.certificateTheme)
-    ? settings.certificateTheme
-    : DEFAULT_PLATFORM_SETTINGS.certificateTheme,
-  certificateSignature: normalizeSignatureImage(settings.certificateSignature),
-});
+    certificateTheme: isCertificateTheme(settings.certificateTheme)
+      ? settings.certificateTheme
+      : DEFAULT_PLATFORM_SETTINGS.certificateTheme,
+    certificateSignature: normalizeSignatureImage(settings.certificateSignature),
+    certificateTemplateVersion: CERTIFICATE_TEMPLATE_SCHEMA_VERSION,
+  });
+};
 
 export const getPlatformSettings = () => {
   const storedSettings = getItem('platform_settings', null);
@@ -310,6 +349,7 @@ export const getPlatformSettings = () => {
     || storedSettings.certificateTemplate !== normalizedSettings.certificateTemplate
     || storedSettings.certificateTheme !== normalizedSettings.certificateTheme
     || storedSettings.certificateSignature !== normalizedSettings.certificateSignature
+    || storedSettings.certificateTemplateVersion !== normalizedSettings.certificateTemplateVersion
   ) {
     setItem('platform_settings', normalizedSettings);
   }
@@ -327,6 +367,7 @@ export const findManagedCourse = (courseId) => getManagedCourses().find((course)
 
 const getActor = () => getCurrentUser();
 const isPrivileged = (role) => ROLE_ORDER[role] >= ROLE_ORDER.Admin;
+const canUseSuperAdminCertificateTools = (role = getCurrentUser()?.role) => role === 'Super Admin';
 const canManageRole = (actorRole, targetRole) => {
   if (actorRole === 'Super Admin') return true;
   if (actorRole === 'Admin') return ROLE_ORDER[targetRole] < ROLE_ORDER.Admin;
@@ -878,6 +919,109 @@ export const issueCertificate = (courseId, courseName, studentName) => {
   setUserItem('certificates', certs);
 
   return { ok: true, certificate: certs[courseId] };
+};
+
+export const forceUnlockCourseCertificate = (courseId, courseName, studentName) => {
+  const currentUser = getCurrentUser();
+  const course = findManagedCourse(courseId);
+
+  if (!currentUser || !canUseSuperAdminCertificateTools(currentUser.role) || !course) {
+    return { ok: false, message: 'Only the Super Admin can unlock certificate previews this way.' };
+  }
+
+  const enrollments = getEnrollments();
+  enrollments[courseId] = enrollments[courseId] || { enrolledAt: new Date().toISOString() };
+  setUserItem('enrollments', enrollments);
+
+  const completedLessons = getCompletedLessons();
+  const lessonWatchProgress = getLessonWatchProgress();
+
+  course.lessons.forEach((lesson) => {
+    const durationSeconds = Math.max(
+      normalizeProgressSeconds(lessonWatchProgress[lesson.id]?.durationSeconds),
+      parseLessonDurationToSeconds(lesson.duration),
+    );
+
+    completedLessons[lesson.id] = {
+      completedAt: new Date().toISOString(),
+      courseId,
+    };
+
+    lessonWatchProgress[lesson.id] = {
+      courseId,
+      watchedSeconds: durationSeconds,
+      durationSeconds,
+      percent: 100,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  setUserItem('completed_lessons', completedLessons);
+  setUserItem('lesson_watch_progress', lessonWatchProgress);
+
+  const certs = getCertificates();
+  certs[courseId] = {
+    id: certs[courseId]?.id || `ANA-${Date.now().toString(36).toUpperCase()}`,
+    courseId,
+    courseName,
+    studentName: studentName || currentUser.name || 'Student',
+    issuedAt: new Date().toISOString(),
+    template: getPlatformSettings().certificateTemplate,
+    theme: getPlatformSettings().certificateTheme,
+    signatureImage: getPlatformSettings().certificateSignature || '',
+  };
+  setUserItem('certificates', certs);
+
+  return {
+    ok: true,
+    certificate: certs[courseId],
+    message: 'Certificate preview unlocked for this course.',
+  };
+};
+
+export const resetCourseProgress = (courseId) => {
+  const currentUser = getCurrentUser();
+  const course = findManagedCourse(courseId);
+
+  if (!currentUser || !canUseSuperAdminCertificateTools(currentUser.role) || !course) {
+    return { ok: false, message: 'Only the Super Admin can reset course progress from this screen.' };
+  }
+
+  const lessonIds = new Set(course.lessons.map((lesson) => lesson.id));
+  const completedLessons = getCompletedLessons();
+  const lessonWatchProgress = getLessonWatchProgress();
+  const lessonNotes = getLessonNotes();
+  const certificates = getCertificates();
+
+  Object.keys(completedLessons).forEach((lessonId) => {
+    if (completedLessons[lessonId]?.courseId === courseId || lessonIds.has(lessonId)) {
+      delete completedLessons[lessonId];
+    }
+  });
+
+  Object.keys(lessonWatchProgress).forEach((lessonId) => {
+    if (lessonWatchProgress[lessonId]?.courseId === courseId || lessonIds.has(lessonId)) {
+      delete lessonWatchProgress[lessonId];
+    }
+  });
+
+  Object.keys(lessonNotes).forEach((lessonId) => {
+    if (lessonIds.has(lessonId)) {
+      delete lessonNotes[lessonId];
+    }
+  });
+
+  delete certificates[courseId];
+
+  setUserItem('completed_lessons', completedLessons);
+  setUserItem('lesson_watch_progress', lessonWatchProgress);
+  setUserItem('lesson_notes', lessonNotes);
+  setUserItem('certificates', certificates);
+
+  return {
+    ok: true,
+    message: 'Course progress has been reset to zero for this account.',
+  };
 };
 
 export const getCertificate = (courseId) => getCertificates()[courseId] || null;

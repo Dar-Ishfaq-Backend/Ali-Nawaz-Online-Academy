@@ -4,10 +4,10 @@ import {
   ArrowRight,
   BookOpen,
   GraduationCap,
-  ShieldCheck,
   Users,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import AcademyLogo from '../components/AcademyLogo';
 
 const inputStyle = {
   background: 'rgba(6,78,59,0.18)',
@@ -107,9 +107,8 @@ export default function Login() {
           />
 
           <div className="relative">
-            <div className="inline-flex items-center gap-2 badge badge-gold mb-5">
-              <ShieldCheck size={14} />
-              Ali Nawaz Academy
+            <div className="mb-6">
+              <AcademyLogo size="lg" />
             </div>
 
             <h1 className="font-cinzel font-black text-3xl md:text-5xl text-gold-400 leading-tight">

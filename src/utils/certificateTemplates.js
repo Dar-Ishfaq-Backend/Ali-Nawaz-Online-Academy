@@ -1,4 +1,13 @@
+import officialCertificatePreview from '../assets/certificate.png';
+
 export const CERTIFICATE_TEMPLATES = [
+  {
+    id: 'academy-official',
+    name: 'Ali Nawaz Official',
+    style: 'Academy Certificate',
+    description: 'The official Ali Nawaz Academy certificate artwork with bilingual parchment detailing and formal signatory placement.',
+    previewBackground: `linear-gradient(rgba(7, 17, 12, 0.08), rgba(7, 17, 12, 0.08)), center / cover no-repeat url(${officialCertificatePreview})`,
+  },
   {
     id: 'ijazah-classic',
     name: 'Ijazah Classic',

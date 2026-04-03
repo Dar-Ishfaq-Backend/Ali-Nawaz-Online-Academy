@@ -1,9 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, GraduationCap, Award,
   Users, BarChart3, PlusCircle, X, Flame, LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import AcademyLogo from './AcademyLogo';
 
 const NavItem = ({ to, icon: Icon, label, onClick }) => (
   <NavLink to={to} onClick={onClick}
@@ -59,6 +60,20 @@ export default function Sidebar({ open, onClose }) {
         <button onClick={onClose} className="text-cream/40 hover:text-cream">
           <X size={18} />
         </button>
+      </div>
+
+      <div className="px-3 mb-5">
+        <Link
+          to="/"
+          onClick={onClose}
+          className="block rounded-2xl px-3 py-3"
+          style={{ background: 'linear-gradient(135deg, rgba(6,78,59,0.24), rgba(2,15,10,0.65))', border: '1px solid rgba(245,158,11,0.12)' }}
+        >
+          <AcademyLogo size="md" showArabic={false} />
+          <p className="mt-3 text-[11px] font-crimson text-cream/45">
+            Classical Islamic learning, certificates, and guided student progress in one academy workspace.
+          </p>
+        </Link>
       </div>
 
       {/* Streak pill */}

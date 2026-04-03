@@ -7,7 +7,17 @@ import CertificateGenerator from '../components/CertificateGenerator';
 import { getCertificateTemplateMeta, getCertificateThemeMeta } from '../utils/certificateTemplates';
 
 export default function Certificates() {
-  const { role, certificates, enrollments, issueCert, courses, platformSettings } = useApp();
+  const {
+    role,
+    currentUser,
+    certificates,
+    enrollments,
+    issueCert,
+    forceUnlockCert,
+    resetCourseProgress,
+    courses,
+    platformSettings,
+  } = useApp();
   const [viewing, setViewing] = useState(null);
   const [claimMessage, setClaimMessage] = useState('');
   const activeTemplate = platformSettings.certificateTemplate;
@@ -15,22 +25,68 @@ export default function Certificates() {
   const activeTemplateMeta = useMemo(() => getCertificateTemplateMeta(activeTemplate), [activeTemplate]);
   const activeThemeMeta = useMemo(() => getCertificateThemeMeta(activeTheme), [activeTheme]);
   const bypassWatchRequirement = role === 'Admin' || role === 'Super Admin';
+  const isSuperAdmin = role === 'Super Admin';
 
   const completedNoCert = courses
     .filter((course) => enrollments[course.id] && canGenerateCertificate(course) && !certificates[course.id]);
   const watchLockedCourses = courses
     .filter((course) => enrollments[course.id] && !canGenerateCertificate(course) && !certificates[course.id]);
+  const superAdminTestingCourses = useMemo(() => courses.map((course) => ({
+    ...course,
+    certificate: certificates[course.id] || null,
+    watchStats: getCourseWatchStats(course),
+  })), [certificates, courses]);
 
   const certList = Object.values(certificates);
 
+  const handleForceUnlock = (course) => {
+    const result = forceUnlockCert(course.id, course.title);
+
+    if (!result.ok) {
+      setClaimMessage(result.message);
+      return;
+    }
+
+    setClaimMessage(result.message || `Certificate unlocked for ${course.title}.`);
+    setViewing(result.certificate);
+  };
+
+  const handleResetCourseProgress = (courseId) => {
+    const result = resetCourseProgress(courseId);
+
+    if (!result.ok) {
+      setClaimMessage(result.message);
+      return;
+    }
+
+    if (viewing?.courseId === courseId) {
+      setViewing(null);
+    }
+
+    setClaimMessage(result.message);
+  };
+
   if (viewing) {
+    const viewingCourse = courses.find((course) => course.id === viewing.courseId) || null;
+
     return (
       <div className="animate-fade-in">
         <button onClick={() => setViewing(null)}
           className="flex items-center gap-2 text-cream/40 hover:text-cream/80 font-crimson text-sm mb-6">
           ← Back to Certificates
         </button>
-        <h1 className="font-cinzel font-black text-2xl text-gold-400 mb-6">Your Certificate</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <h1 className="font-cinzel font-black text-2xl text-gold-400">Your Certificate</h1>
+          {isSuperAdmin && viewingCourse && (
+            <button
+              type="button"
+              onClick={() => handleResetCourseProgress(viewingCourse.id)}
+              className="btn-emerald text-xs px-4 py-2 w-full sm:w-auto"
+            >
+              Reset This Course To Zero
+            </button>
+          )}
+        </div>
         <CertificateGenerator cert={viewing} template={activeTemplate} theme={activeTheme} />
       </div>
     );
@@ -47,6 +103,66 @@ export default function Certificates() {
           <p className="text-xs text-gold-300 font-crimson mt-3">{claimMessage}</p>
         )}
       </div>
+
+      {isSuperAdmin && (
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Award size={18} className="text-gold-400" />
+            <h2 className="font-cinzel font-bold text-gold-400">Super Admin Certificate Testing</h2>
+          </div>
+          <p className="text-xs text-cream/40 font-crimson mb-4">
+            Use these tools to unlock any course certificate for the current Super Admin account, check the design, then reset that course back to zero progress.
+          </p>
+          <div className="space-y-3">
+            {superAdminTestingCourses.map((course) => (
+              <div
+                key={course.id}
+                className="flex flex-col gap-3 rounded-xl px-4 py-4"
+                style={{ background: 'rgba(6,78,59,0.12)', border: '1px solid rgba(245,158,11,0.16)' }}
+              >
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-cinzel font-bold text-gold-300 text-sm">{course.title}</p>
+                    <p className="text-cream/40 text-xs font-crimson mt-1">
+                      Current watch progress for {currentUser?.name || 'this account'}: {course.watchStats.coursePercent}%
+                    </p>
+                    <p className="text-cream/25 text-[11px] font-crimson mt-1">
+                      {course.certificate ? `Certificate ready: ${course.certificate.id}` : 'No certificate generated yet for this course.'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    {course.certificate ? (
+                      <button
+                        type="button"
+                        onClick={() => setViewing(course.certificate)}
+                        className="btn-gold text-xs px-4 py-2"
+                      >
+                        Open Certificate
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleForceUnlock(course)}
+                        className="btn-gold text-xs px-4 py-2"
+                      >
+                        Unlock Certificate
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleResetCourseProgress(course.id)}
+                      className="btn-emerald text-xs px-4 py-2"
+                    >
+                      Reset Progress
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Claimable certificates */}
       {completedNoCert.length > 0 && (

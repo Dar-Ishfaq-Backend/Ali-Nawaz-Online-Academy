@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import AcademyLogo from './components/AcademyLogo';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -23,6 +24,7 @@ function PublicOnlyRoute() {
     return (
       <div className="geometric-bg min-h-screen flex items-center justify-center px-4">
         <div className="glass-card px-6 py-5 text-center">
+          <AcademyLogo size="md" textAlign="center" className="justify-center mb-4" />
           <p className="font-cinzel text-gold-400 text-sm tracking-[0.2em] mb-2">LOADING</p>
           <p className="text-cream/55 font-crimson">Preparing your academy portal...</p>
         </div>
@@ -40,6 +42,7 @@ function ProtectedShell() {
     return (
       <div className="geometric-bg min-h-screen flex items-center justify-center px-4">
         <div className="glass-card px-6 py-5 text-center">
+          <AcademyLogo size="md" textAlign="center" className="justify-center mb-4" />
           <p className="font-cinzel text-gold-400 text-sm tracking-[0.2em] mb-2">LOADING</p>
           <p className="text-cream/55 font-crimson">Syncing your account...</p>
         </div>

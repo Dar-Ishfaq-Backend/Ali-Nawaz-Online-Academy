@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import certificateBackground from '../../assets/certificate.png';
 import sealImage from '../../assets/seal.png';
 import signatureAsset from '../../assets/signature.png';
 import { getCertificateTemplateMeta, getCertificateThemeMeta } from '../../utils/certificateTemplates';
@@ -120,12 +121,43 @@ const FooterMetaBlock = ({
   </div>
 );
 
+const OFFICIAL_FIELD_WASH = 'linear-gradient(180deg, rgba(251, 247, 237, 0.9), rgba(244, 236, 220, 0.8))';
+
+const OfficialFieldMask = ({
+  className = '',
+  children,
+  align = 'center',
+  style = {},
+}) => (
+  <div
+    className={`absolute flex items-center justify-center rounded-[16px] px-3 ${className}`}
+    style={{
+      background: OFFICIAL_FIELD_WASH,
+      boxShadow: '0 8px 22px rgba(112, 82, 28, 0.08)',
+      textAlign: align,
+      ...style,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const getOfficialNameSize = (value = '') => {
+  if (value.length > 24) return '2.2rem';
+  if (value.length > 18) return '2.55rem';
+  return '2.9rem';
+};
+
+const getOfficialCourseSize = (value = '') => {
+  if (value.length > 28) return '1.62rem';
+  if (value.length > 22) return '1.82rem';
+  return '2rem';
+};
+
 const CertificateShell = ({ palette, children, className = '', decorations = null }) => (
   <div
-    className={`relative mx-auto w-full overflow-hidden rounded-[28px] certificate-border px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${className}`}
+    className={`relative mx-auto w-[1120px] h-[792px] flex-shrink-0 overflow-hidden rounded-[30px] certificate-border px-8 py-8 ${className}`}
     style={{
-      maxWidth: 1180,
-      aspectRatio: '297 / 210',
       background: palette.surfaceBackground,
       '--certificate-border-color': palette.border,
       '--certificate-border-inner': palette.borderInnerShadow,
@@ -133,10 +165,10 @@ const CertificateShell = ({ palette, children, className = '', decorations = nul
     }}
   >
     <div
-      className="absolute inset-[9px] rounded-[22px]"
+      className="absolute inset-[14px] rounded-[24px]"
       style={{ border: `1px solid ${palette.line}`, boxShadow: `inset 0 0 0 1px ${palette.borderInnerShadow}` }}
     />
-    <div className="absolute inset-[18px] rounded-[16px]" style={{ border: `1px solid ${palette.line}`, opacity: 0.34 }} />
+    <div className="absolute inset-[30px] rounded-[18px]" style={{ border: `1px solid ${palette.line}`, opacity: 0.34 }} />
     <div
       className="absolute inset-0"
       style={{
@@ -718,6 +750,100 @@ const SafavidScriptTemplate = ({ cert, palette, templateMeta, signatureSrc, seal
   </CertificateShell>
 );
 
+const AcademyOfficialTemplate = ({ cert, signatureSrc, date }) => {
+  const englishNameSize = getOfficialNameSize(cert.studentName);
+  const englishCourseSize = getOfficialCourseSize(cert.courseName);
+
+  return (
+    <div className="relative mx-auto w-[1120px] h-[792px] flex-shrink-0 overflow-hidden rounded-[28px] shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+      <img
+        src={certificateBackground}
+        alt="Ali Nawaz Academy official certificate background"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="absolute inset-[10px] rounded-[24px] shadow-[inset_0_0_0_1px_rgba(149,113,37,0.14)]" />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'radial-gradient(circle at center, rgba(255,255,255,0.08), transparent 44%)',
+        }}
+      />
+
+      <OfficialFieldMask className="left-[68px] top-[332px] h-[52px] w-[432px]">
+        <div
+          className="font-cormorant italic font-semibold leading-none break-words"
+          style={{
+            color: '#bb8e38',
+            fontSize: englishNameSize,
+            textShadow: '0 2px 8px rgba(255,255,255,0.35)',
+          }}
+        >
+          {cert.studentName}
+        </div>
+      </OfficialFieldMask>
+
+      <OfficialFieldMask className="left-[698px] top-[334px] h-[50px] w-[270px]">
+        <div
+          className="font-cormorant font-semibold leading-none break-words"
+          style={{
+            color: '#1d7450',
+            fontSize: '1.9rem',
+            textShadow: '0 2px 8px rgba(255,255,255,0.28)',
+          }}
+        >
+          {cert.studentName}
+        </div>
+      </OfficialFieldMask>
+
+      <OfficialFieldMask className="left-[186px] top-[562px] h-[74px] w-[286px]">
+        <div
+          className="font-cormorant font-semibold leading-[1.04] break-words"
+          style={{
+            color: '#2f7b5d',
+            fontSize: englishCourseSize,
+            textShadow: '0 2px 8px rgba(255,255,255,0.22)',
+          }}
+        >
+          {cert.courseName}
+        </div>
+      </OfficialFieldMask>
+
+      <OfficialFieldMask className="left-[716px] top-[560px] h-[72px] w-[248px]">
+        <div
+          className="font-cormorant font-semibold leading-[1.05] break-words"
+          style={{
+            color: '#2f7b5d',
+            fontSize: '1.45rem',
+            textShadow: '0 2px 8px rgba(255,255,255,0.22)',
+          }}
+        >
+          {cert.courseName}
+        </div>
+      </OfficialFieldMask>
+
+      <div className="absolute left-[106px] bottom-[98px] min-w-[124px] rounded-[10px] px-3 py-1.5" style={{ background: 'rgba(248, 243, 231, 0.92)' }}>
+        <div className="font-cinzel text-[0.62rem] break-all" style={{ color: '#6e8d78', letterSpacing: '0.04em' }}>
+          {cert.id}
+        </div>
+      </div>
+
+      <div className="absolute left-[104px] bottom-[42px] px-2 py-0.5" style={{ background: 'rgba(248, 243, 231, 0.72)', borderRadius: 8 }}>
+        <div className="font-crimson text-[0.88rem]" style={{ color: '#546558' }}>
+          {date}
+        </div>
+      </div>
+
+      <div className="absolute left-[712px] bottom-[74px] w-[132px] flex items-center justify-center">
+        <img
+          src={signatureSrc}
+          alt="Ali Nawaz Academy signature"
+          className="h-14 w-auto object-contain opacity-95 drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)]"
+        />
+      </div>
+    </div>
+  );
+};
+
 export default function CertificateCanvas({ cert, template, theme, signatureImage }) {
   const { platformSettings } = useApp();
   const activeTemplate = template || platformSettings.certificateTemplate || cert.template;
@@ -737,6 +863,8 @@ export default function CertificateCanvas({ cert, template, theme, signatureImag
   };
 
   switch (templateMeta.id) {
+    case 'academy-official':
+      return <AcademyOfficialTemplate {...commonProps} />;
     case 'ottoman-royal':
       return <OttomanRoyalTemplate {...commonProps} />;
     case 'mihrab-modern':
@@ -748,7 +876,8 @@ export default function CertificateCanvas({ cert, template, theme, signatureImag
     case 'safavid-script':
       return <SafavidScriptTemplate {...commonProps} />;
     case 'ijazah-classic':
-    default:
       return <IjazahClassicTemplate {...commonProps} />;
+    default:
+      return <AcademyOfficialTemplate {...commonProps} />;
   }
 }

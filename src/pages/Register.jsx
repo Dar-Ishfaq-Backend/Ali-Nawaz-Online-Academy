@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, UserPlus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import AcademyLogo from '../components/AcademyLogo';
 
 const inputStyle = {
   background: 'rgba(6,78,59,0.2)',
@@ -69,6 +70,9 @@ export default function Register() {
     <div className="geometric-bg min-h-screen flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-4xl grid lg:grid-cols-[0.85fr_1.15fr] gap-6">
         <section className="glass-card p-6 md:p-8">
+          <div className="mb-5">
+            <AcademyLogo size="md" />
+          </div>
           <div className="inline-flex items-center gap-2 badge badge-emerald mb-5">
             <UserPlus size={14} />
             Student Sign-Up
