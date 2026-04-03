@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { CERTIFICATE_TEMPLATES, CERTIFICATE_THEMES } from '../utils/certificateTemplates';
 import {
   STAFF_ACCESS_RULES,
   getSupabaseUser,
@@ -310,21 +309,21 @@ export function AppProvider({ children }) {
     refreshState();
   }, [refreshState]);
 
-  const issueCert = useCallback((courseId, courseName) => {
-    const result = storageIssue(courseId, courseName, state.studentName);
+  const issueCert = useCallback(async (courseId, courseName) => {
+    const result = await storageIssue(courseId, courseName, state.studentName);
     if (result.ok) refreshState();
     return result;
   }, [refreshState, state.studentName]);
 
-  const forceUnlockCert = useCallback((courseId, courseName) => {
+  const forceUnlockCert = useCallback(async (courseId, courseName) => {
     const nextStudentName = state.studentName || state.currentUser?.name || 'Student';
-    const result = storageForceUnlockCertificate(courseId, courseName, nextStudentName);
+    const result = await storageForceUnlockCertificate(courseId, courseName, nextStudentName);
     if (result.ok) refreshState();
     return result;
   }, [refreshState, state.currentUser?.name, state.studentName]);
 
-  const resetCourseProgress = useCallback((courseId) => {
-    const result = storageResetCourseProgress(courseId);
+  const resetCourseProgress = useCallback(async (courseId) => {
+    const result = await storageResetCourseProgress(courseId);
     if (result.ok) refreshState();
     return result;
   }, [refreshState]);
@@ -385,8 +384,6 @@ export function AppProvider({ children }) {
       passwordRecoveryReady,
       isAuthenticated: !!state.currentUser,
       demoAccounts: DEMO_ACCOUNTS,
-      certificateTemplates: CERTIFICATE_TEMPLATES,
-      certificateThemes: CERTIFICATE_THEMES,
       staffAccessRules: STAFF_ACCESS_RULES,
       login,
       register,

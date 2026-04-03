@@ -43,10 +43,21 @@ create table if not exists public.payments (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.certificates (
+  certificate_id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  course_id text not null,
+  student_name text not null default '',
+  course_name text not null default '',
+  completion_date date not null default current_date,
+  issued_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.courses enable row level security;
 alter table public.enrollments enable row level security;
 alter table public.payments enable row level security;
+alter table public.certificates enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -143,6 +154,35 @@ for update
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+drop policy if exists "Certificates are publicly verifiable" on public.certificates;
+create policy "Certificates are publicly verifiable"
+on public.certificates
+for select
+to public
+using (true);
+
+drop policy if exists "Certificate owners and admins insert rows" on public.certificates;
+create policy "Certificate owners and admins insert rows"
+on public.certificates
+for insert
+to authenticated
+with check (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "Certificate owners and admins update rows" on public.certificates;
+create policy "Certificate owners and admins update rows"
+on public.certificates
+for update
+to authenticated
+using (auth.uid() = user_id or public.is_admin())
+with check (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "Certificate owners and admins delete rows" on public.certificates;
+create policy "Certificate owners and admins delete rows"
+on public.certificates
+for delete
+to authenticated
+using (auth.uid() = user_id or public.is_admin());
 
 insert into storage.buckets (id, name, public)
 values ('payments', 'payments', true)

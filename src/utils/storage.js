@@ -1,10 +1,5 @@
 import { COURSES as BASE_COURSES } from '../data/courses';
-import {
-  DEFAULT_CERTIFICATE_TEMPLATE,
-  DEFAULT_CERTIFICATE_THEME,
-  isCertificateTemplate,
-  isCertificateTheme,
-} from './certificateTemplates';
+import { buildCertificateVerificationUrl, deleteIssuedCertificateRecord, upsertIssuedCertificateRecord } from './certificateRecords';
 import { COURSE_PAYMENT_DETAILS } from './paymentConfig';
 
 // ─────────────────────────────────────────────
@@ -19,8 +14,10 @@ export const LESSON_WATCH_THRESHOLD = 70;
 export const CERTIFICATE_WATCH_THRESHOLD = 70;
 const DEFAULT_FREE_PREVIEW_LESSONS = 3;
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
+const IMAGE_DATA_URL_PREFIX = 'data:image/';
 const LEGACY_REMOVED_USER_IDS = new Set(['demo-super-admin']);
 const LEGACY_REMOVED_USER_EMAILS = new Set(['superadmin@alinawaz.academy']);
+const CERTIFICATE_SETTINGS_SCHEMA_VERSION = 3;
 
 const ROLE_ORDER = {
   Student: 0,
@@ -75,6 +72,9 @@ const parseLessonDurationToSeconds = (value, fallback = 600) => {
 };
 const normalizeSignatureImage = (value) => (
   typeof value === 'string' && value.startsWith(PNG_DATA_URL_PREFIX) ? value : ''
+);
+const normalizeCertificateQrDataUrl = (value) => (
+  typeof value === 'string' && value.startsWith(IMAGE_DATA_URL_PREFIX) ? value : ''
 );
 
 const DEMO_USERS = [
@@ -310,35 +310,15 @@ const getCourseOverrides = () => getItem('platform_course_overrides', {});
 const setCourseOverrides = (overrides) => setItem('platform_course_overrides', overrides);
 const getCustomCourses = () => getItem('platform_custom_courses', []).map(hydrateCourse);
 const setCustomCourses = (courses) => setItem('platform_custom_courses', courses.map(serializeCourse));
-const CERTIFICATE_TEMPLATE_SCHEMA_VERSION = 2;
 const DEFAULT_PLATFORM_SETTINGS = {
-  certificateTemplate: DEFAULT_CERTIFICATE_TEMPLATE,
-  certificateTheme: DEFAULT_CERTIFICATE_THEME,
   certificateSignature: '',
-  certificateTemplateVersion: CERTIFICATE_TEMPLATE_SCHEMA_VERSION,
+  certificateSettingsVersion: CERTIFICATE_SETTINGS_SCHEMA_VERSION,
 };
-const LEGACY_DEFAULT_CERTIFICATE_TEMPLATE = 'ijazah-classic';
 
-const normalizePlatformSettings = (settings = {}) => {
-  const incomingVersion = Number(settings.certificateTemplateVersion || 0);
-  const requestedTemplate = settings.certificateTemplate === LEGACY_DEFAULT_CERTIFICATE_TEMPLATE
-    ? DEFAULT_PLATFORM_SETTINGS.certificateTemplate
-    : settings.certificateTemplate;
-  const nextTemplate = incomingVersion < CERTIFICATE_TEMPLATE_SCHEMA_VERSION
-    ? DEFAULT_PLATFORM_SETTINGS.certificateTemplate
-    : requestedTemplate;
-
-  return ({
-    certificateTemplate: isCertificateTemplate(nextTemplate)
-    ? nextTemplate
-    : DEFAULT_PLATFORM_SETTINGS.certificateTemplate,
-    certificateTheme: isCertificateTheme(settings.certificateTheme)
-      ? settings.certificateTheme
-      : DEFAULT_PLATFORM_SETTINGS.certificateTheme,
-    certificateSignature: normalizeSignatureImage(settings.certificateSignature),
-    certificateTemplateVersion: CERTIFICATE_TEMPLATE_SCHEMA_VERSION,
-  });
-};
+const normalizePlatformSettings = (settings = {}) => ({
+  certificateSignature: normalizeSignatureImage(settings.certificateSignature),
+  certificateSettingsVersion: CERTIFICATE_SETTINGS_SCHEMA_VERSION,
+});
 
 export const getPlatformSettings = () => {
   const storedSettings = getItem('platform_settings', null);
@@ -346,10 +326,8 @@ export const getPlatformSettings = () => {
 
   if (
     !storedSettings
-    || storedSettings.certificateTemplate !== normalizedSettings.certificateTemplate
-    || storedSettings.certificateTheme !== normalizedSettings.certificateTheme
     || storedSettings.certificateSignature !== normalizedSettings.certificateSignature
-    || storedSettings.certificateTemplateVersion !== normalizedSettings.certificateTemplateVersion
+    || storedSettings.certificateSettingsVersion !== normalizedSettings.certificateSettingsVersion
   ) {
     setItem('platform_settings', normalizedSettings);
   }
@@ -387,14 +365,6 @@ export const updatePlatformSettings = (updates) => {
 
   if (!actor || !isPrivileged(actor.role)) {
     return { ok: false, message: 'You do not have permission to update platform settings.' };
-  }
-
-  if (updates.certificateTemplate && !isCertificateTemplate(updates.certificateTemplate)) {
-    return { ok: false, message: 'Please choose a valid certificate template.' };
-  }
-
-  if (updates.certificateTheme && !isCertificateTheme(updates.certificateTheme)) {
-    return { ok: false, message: 'Please choose a valid certificate theme.' };
   }
 
   if (
@@ -890,38 +860,125 @@ export const updateStreak = () => {
   return updated;
 };
 
-export const getCertificates = () => getUserItem('certificates', {});
+const normalizeCertificateRecord = (courseId, certificate) => {
+  if (!certificate || typeof certificate !== 'object') return null;
 
-export const issueCertificate = (courseId, courseName, studentName) => {
+  const issuedAt = certificate.issuedAt || new Date().toISOString();
+  const completionDate = typeof certificate.completionDate === 'string' && certificate.completionDate
+    ? certificate.completionDate
+    : toDateStr(new Date(issuedAt));
+
+  return {
+    id: certificate.id || `ANA-${Date.now().toString(36).toUpperCase()}`,
+    courseId: certificate.courseId || courseId,
+    courseName: certificate.courseName || findManagedCourse(courseId)?.title || 'Course',
+    studentName: certificate.studentName || getCurrentUser()?.name || 'Student',
+    issuedAt,
+    completionDate,
+    verificationUrl: typeof certificate.verificationUrl === 'string' && certificate.verificationUrl
+      ? certificate.verificationUrl
+      : '',
+    qrCodeDataUrl: normalizeCertificateQrDataUrl(certificate.qrCodeDataUrl),
+    signatureImage: normalizeSignatureImage(certificate.signatureImage),
+  };
+};
+
+export const getCertificates = () => {
+  const storedCertificates = getUserItem('certificates', {});
+  const normalizedCertificates = Object.fromEntries(
+    Object.entries(storedCertificates)
+      .map(([courseId, certificate]) => [courseId, normalizeCertificateRecord(courseId, certificate)])
+      .filter(([, certificate]) => Boolean(certificate)),
+  );
+
+  if (JSON.stringify(storedCertificates) !== JSON.stringify(normalizedCertificates)) {
+    setUserItem('certificates', normalizedCertificates);
+  }
+
+  return normalizedCertificates;
+};
+
+const buildIssuedCertificate = async ({
+  courseId,
+  courseName,
+  studentName,
+  existingCertificate = null,
+}) => {
+  const currentUser = getCurrentUser();
+
+  if (!currentUser?.id) {
+    return { ok: false, message: 'Please sign in again before issuing the certificate.' };
+  }
+
+  const issuedAt = existingCertificate?.issuedAt || new Date().toISOString();
+  const completionDate = existingCertificate?.completionDate || toDateStr(new Date(issuedAt));
+  const certificateId = existingCertificate?.id || `ANA-${Date.now().toString(36).toUpperCase()}`;
+  const safeCourseName = courseName || existingCertificate?.courseName || findManagedCourse(courseId)?.title || 'Course';
+  const safeStudentName = studentName || existingCertificate?.studentName || currentUser.name || 'Student';
+  const signatureImage = getPlatformSettings().certificateSignature || existingCertificate?.signatureImage || '';
+
+  const verificationResult = await upsertIssuedCertificateRecord({
+    certificateId,
+    userId: currentUser.id,
+    courseId,
+    studentName: safeStudentName,
+    courseName: safeCourseName,
+    completionDate,
+    issuedAt,
+  });
+
+  if (!verificationResult.ok) {
+    return verificationResult;
+  }
+
+  return {
+    ok: true,
+    certificate: {
+      id: certificateId,
+      courseId,
+      courseName: safeCourseName,
+      studentName: safeStudentName,
+      issuedAt,
+      completionDate,
+      verificationUrl: verificationResult.verificationUrl || buildCertificateVerificationUrl(certificateId),
+      qrCodeDataUrl: verificationResult.qrCodeDataUrl || '',
+      signatureImage,
+    },
+  };
+};
+
+export const issueCertificate = async (courseId, courseName, studentName) => {
   const certs = getCertificates();
-  if (certs[courseId]) {
-    return { ok: true, certificate: certs[courseId] };
+  const existingCertificate = certs[courseId] || null;
+
+  if (!existingCertificate) {
+    const course = findManagedCourse(courseId);
+    if (!course || !canGenerateCertificate(course)) {
+      return {
+        ok: false,
+        message: `Watch at least ${CERTIFICATE_WATCH_THRESHOLD}% of the full course before claiming the certificate.`,
+      };
+    }
   }
 
-  const course = findManagedCourse(courseId);
-  if (!course || !canGenerateCertificate(course)) {
-    return {
-      ok: false,
-      message: `Watch at least ${CERTIFICATE_WATCH_THRESHOLD}% of the full course before claiming the certificate.`,
-    };
-  }
-
-  certs[courseId] = {
-    id: `ANA-${Date.now().toString(36).toUpperCase()}`,
+  const result = await buildIssuedCertificate({
     courseId,
     courseName,
     studentName,
-    issuedAt: new Date().toISOString(),
-    template: getPlatformSettings().certificateTemplate,
-    theme: getPlatformSettings().certificateTheme,
-    signatureImage: getPlatformSettings().certificateSignature || '',
-  };
+    existingCertificate,
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  certs[courseId] = result.certificate;
   setUserItem('certificates', certs);
 
   return { ok: true, certificate: certs[courseId] };
 };
 
-export const forceUnlockCourseCertificate = (courseId, courseName, studentName) => {
+export const forceUnlockCourseCertificate = async (courseId, courseName, studentName) => {
   const currentUser = getCurrentUser();
   const course = findManagedCourse(courseId);
 
@@ -960,16 +1017,18 @@ export const forceUnlockCourseCertificate = (courseId, courseName, studentName) 
   setUserItem('lesson_watch_progress', lessonWatchProgress);
 
   const certs = getCertificates();
-  certs[courseId] = {
-    id: certs[courseId]?.id || `ANA-${Date.now().toString(36).toUpperCase()}`,
+  const result = await buildIssuedCertificate({
     courseId,
     courseName,
     studentName: studentName || currentUser.name || 'Student',
-    issuedAt: new Date().toISOString(),
-    template: getPlatformSettings().certificateTemplate,
-    theme: getPlatformSettings().certificateTheme,
-    signatureImage: getPlatformSettings().certificateSignature || '',
-  };
+    existingCertificate: certs[courseId] || null,
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  certs[courseId] = result.certificate;
   setUserItem('certificates', certs);
 
   return {
@@ -979,7 +1038,7 @@ export const forceUnlockCourseCertificate = (courseId, courseName, studentName) 
   };
 };
 
-export const resetCourseProgress = (courseId) => {
+export const resetCourseProgress = async (courseId) => {
   const currentUser = getCurrentUser();
   const course = findManagedCourse(courseId);
 
@@ -1010,6 +1069,14 @@ export const resetCourseProgress = (courseId) => {
       delete lessonNotes[lessonId];
     }
   });
+
+  const certificateToRemove = certificates[courseId] || null;
+  if (certificateToRemove?.id) {
+    const deleteResult = await deleteIssuedCertificateRecord(certificateToRemove.id);
+    if (!deleteResult.ok) {
+      return deleteResult;
+    }
+  }
 
   delete certificates[courseId];
 

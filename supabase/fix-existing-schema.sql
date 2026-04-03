@@ -123,3 +123,108 @@ alter column youtube_playlist_url set not null,
 alter column thumbnail set not null,
 alter column instructor set not null,
 alter column created_at set not null;
+
+create table if not exists public.certificates (
+  certificate_id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  course_id text not null,
+  student_name text not null default '',
+  course_name text not null default '',
+  completion_date date not null default current_date,
+  issued_at timestamptz not null default now()
+);
+
+alter table if exists public.certificates
+add column if not exists user_id uuid,
+add column if not exists course_id text,
+add column if not exists student_name text,
+add column if not exists course_name text,
+add column if not exists completion_date date default current_date,
+add column if not exists issued_at timestamptz default now();
+
+alter table if exists public.certificates
+alter column certificate_id type text using certificate_id::text,
+alter column course_id type text using course_id::text,
+alter column student_name type text using coalesce(student_name, ''),
+alter column course_name type text using coalesce(course_name, ''),
+alter column completion_date set default current_date,
+alter column issued_at set default now();
+
+update public.certificates
+set
+  student_name = coalesce(student_name, ''),
+  course_name = coalesce(course_name, ''),
+  completion_date = coalesce(completion_date, current_date),
+  issued_at = coalesce(issued_at, now());
+
+alter table if exists public.certificates
+alter column certificate_id set not null,
+alter column user_id set not null,
+alter column course_id set not null,
+alter column student_name set not null,
+alter column course_name set not null,
+alter column completion_date set not null,
+alter column issued_at set not null;
+
+alter table if exists public.certificates enable row level security;
+
+drop policy if exists "Certificates are publicly verifiable" on public.certificates;
+create policy "Certificates are publicly verifiable"
+on public.certificates
+for select
+to public
+using (true);
+
+drop policy if exists "Certificate owners and admins insert rows" on public.certificates;
+create policy "Certificate owners and admins insert rows"
+on public.certificates
+for insert
+to authenticated
+with check (
+  auth.uid() = user_id
+  or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('Admin', 'Super Admin')
+  )
+);
+
+drop policy if exists "Certificate owners and admins update rows" on public.certificates;
+create policy "Certificate owners and admins update rows"
+on public.certificates
+for update
+to authenticated
+using (
+  auth.uid() = user_id
+  or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('Admin', 'Super Admin')
+  )
+)
+with check (
+  auth.uid() = user_id
+  or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('Admin', 'Super Admin')
+  )
+);
+
+drop policy if exists "Certificate owners and admins delete rows" on public.certificates;
+create policy "Certificate owners and admins delete rows"
+on public.certificates
+for delete
+to authenticated
+using (
+  auth.uid() = user_id
+  or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('Admin', 'Super Admin')
+  )
+);

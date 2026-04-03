@@ -121,7 +121,7 @@ const formatErrorMessage = (data, fallbackMessage) => (
   || fallbackMessage
 );
 
-const requestSupabase = async (path, options = {}) => {
+export const requestSupabase = async (path, options = {}) => {
   if (!isSupabaseEnabled()) {
     return { ok: false, message: 'Supabase is not configured.' };
   }

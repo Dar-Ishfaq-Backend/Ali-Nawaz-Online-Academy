@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Download } from 'lucide-react';
-import { getCertificateThemeMeta } from '../utils/certificateTemplates';
+import { CERTIFICATE_LAYOUT } from '../utils/certificateTemplates';
 import CertificateCanvas from './certificates/CertificateCanvas';
 
 const waitForFonts = async () => {
@@ -9,7 +9,7 @@ const waitForFonts = async () => {
       await document.fonts.ready;
     }
   } catch {
-    // Font readiness is a nice-to-have for export, not a blocker.
+    // Non-blocking: PDF export can still proceed if font readiness fails.
   }
 };
 
@@ -28,20 +28,22 @@ const waitForImages = async (element) => {
   }));
 };
 
-const createExportClone = (element, backgroundColor) => {
+const createExportClone = (element) => {
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';
   wrapper.style.left = '-10000px';
   wrapper.style.top = '0';
-  wrapper.style.width = '1200px';
+  wrapper.style.width = `${CERTIFICATE_LAYOUT.width + 72}px`;
   wrapper.style.padding = '24px';
-  wrapper.style.background = backgroundColor;
+  wrapper.style.display = 'flex';
+  wrapper.style.justifyContent = 'center';
+  wrapper.style.background = CERTIFICATE_LAYOUT.canvasBackground;
   wrapper.style.zIndex = '-1';
 
   const clone = element.cloneNode(true);
-  clone.style.width = '1120px';
-  clone.style.maxWidth = '1120px';
-  clone.style.minWidth = '1120px';
+  clone.style.width = `${CERTIFICATE_LAYOUT.width}px`;
+  clone.style.maxWidth = `${CERTIFICATE_LAYOUT.width}px`;
+  clone.style.minWidth = `${CERTIFICATE_LAYOUT.width}px`;
   clone.style.animation = 'none';
   clone.style.transform = 'none';
 
@@ -51,9 +53,8 @@ const createExportClone = (element, backgroundColor) => {
   return { wrapper, clone };
 };
 
-export default function CertificateGenerator({ cert, template, theme, signatureImage, onDownload, showDownload = true }) {
+export default function CertificateGenerator({ cert, signatureImage, onDownload, showDownload = true }) {
   const certRef = useRef(null);
-  const palette = getCertificateThemeMeta(theme || cert.theme);
 
   const handleDownload = async () => {
     if (!certRef.current) return;
@@ -67,7 +68,7 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
       await waitForFonts();
       await waitForImages(certRef.current);
 
-      const { wrapper, clone } = createExportClone(certRef.current, palette.canvasBackground);
+      const { wrapper, clone } = createExportClone(certRef.current);
       let canvas = null;
 
       try {
@@ -75,17 +76,17 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
 
         canvas = await html2canvas(clone, {
           scale: exportScale,
-          backgroundColor: palette.canvasBackground,
+          backgroundColor: CERTIFICATE_LAYOUT.canvasBackground,
           useCORS: true,
           allowTaint: true,
           logging: false,
           imageTimeout: 0,
-          windowWidth: 1400,
-          windowHeight: 1100,
+          windowWidth: CERTIFICATE_LAYOUT.width + 120,
+          windowHeight: CERTIFICATE_LAYOUT.height + 120,
           onclone: (doc) => {
             doc.body.style.margin = '0';
-            doc.body.style.background = palette.canvasBackground;
-            doc.documentElement.style.background = palette.canvasBackground;
+            doc.body.style.background = CERTIFICATE_LAYOUT.canvasBackground;
+            doc.documentElement.style.background = CERTIFICATE_LAYOUT.canvasBackground;
 
             doc.querySelectorAll('.animate-fade-in').forEach((node) => {
               node.style.animation = 'none';
@@ -98,7 +99,7 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
         compress: true,
@@ -106,7 +107,7 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 8;
+      const margin = 7;
       const usableWidth = pageWidth - (margin * 2);
       const usableHeight = pageHeight - (margin * 2);
       const renderRatio = Math.min(usableWidth / canvas.width, usableHeight / canvas.height);
@@ -124,22 +125,17 @@ export default function CertificateGenerator({ cert, template, theme, signatureI
   };
 
   return (
-    <div className="animate-fade-in">
-      <div className="overflow-x-auto overflow-y-visible pb-3">
-        <div className="w-max min-w-full flex justify-center">
+    <div className="animate-fade-in space-y-5">
+      <div className="overflow-auto rounded-[26px] p-3 sm:p-5" style={{ background: 'rgba(3, 18, 12, 0.34)' }}>
+        <div className="mx-auto w-fit">
           <div ref={certRef}>
-            <CertificateCanvas
-              cert={cert}
-              template={template}
-              theme={theme}
-              signatureImage={signatureImage}
-            />
+            <CertificateCanvas cert={cert} signatureImage={signatureImage} />
           </div>
         </div>
       </div>
 
       {showDownload && (
-        <div className="flex justify-center mt-6">
+        <div className="flex justify-center">
           <button onClick={onDownload || handleDownload} className="btn-gold flex items-center justify-center gap-2 text-sm px-6 py-3 w-full sm:w-auto">
             <Download size={16} />
             Download Certificate (PDF)

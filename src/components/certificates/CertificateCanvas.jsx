@@ -1,883 +1,373 @@
-import { useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
-import certificateBackground from '../../assets/certificate.png';
+import { useEffect, useMemo, useState } from 'react';
+import academyLogo from '../../assets/logo.png';
 import sealImage from '../../assets/seal.png';
-import signatureAsset from '../../assets/signature.png';
-import { getCertificateTemplateMeta, getCertificateThemeMeta } from '../../utils/certificateTemplates';
+import bundledSignature from '../../assets/signature.png';
+import { buildCertificateVerificationUrl, createCertificateQrDataUrl } from '../../utils/certificateRecords';
+import { CERTIFICATE_LAYOUT } from '../../utils/certificateTemplates';
 
-const formatCertificateDate = (value) => new Date(value).toLocaleDateString('en-US', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-});
-
-const PatternBand = ({ color, soft, className = '' }) => (
-  <svg viewBox="0 0 640 72" fill="none" className={className}>
-    <path d="M40 36 H246" stroke={color} strokeWidth="1" opacity="0.45" />
-    <path d="M394 36 H600" stroke={color} strokeWidth="1" opacity="0.45" />
-    <path d="M320 12 L344 36 L320 60 L296 36 Z" stroke={color} strokeWidth="1.1" />
-    <path d="M320 3 L353 36 L320 69 L287 36 Z" stroke={soft} strokeWidth="0.9" opacity="0.75" />
-    <path d="M276 36 H296" stroke={soft} strokeWidth="0.8" opacity="0.55" />
-    <path d="M344 36 H364" stroke={soft} strokeWidth="0.8" opacity="0.55" />
-    <circle cx="320" cy="36" r="4" fill={color} opacity="0.75" />
-    <circle cx="254" cy="36" r="2" fill={soft} opacity="0.55" />
-    <circle cx="386" cy="36" r="2" fill={soft} opacity="0.55" />
-  </svg>
-);
-
-const CornerKnot = ({ color, className = '' }) => (
-  <svg viewBox="0 0 120 120" fill="none" className={className}>
-    <path d="M12 84 C12 32 32 12 84 12" stroke={color} strokeWidth="1.2" opacity="0.85" />
-    <path d="M24 84 C24 40 40 24 84 24" stroke={color} strokeWidth="0.8" opacity="0.55" />
-    <path d="M42 24 L58 40 L42 56 L26 40 Z" stroke={color} strokeWidth="0.85" opacity="0.7" />
-    <path d="M24 60 L40 76 L24 92 L8 76 Z" stroke={color} strokeWidth="0.85" opacity="0.55" />
-    <path d="M12 98 H58" stroke={color} strokeWidth="0.7" opacity="0.35" />
-    <path d="M98 12 V58" stroke={color} strokeWidth="0.7" opacity="0.35" />
-    <circle cx="42" cy="40" r="2.6" fill={color} opacity="0.55" />
-    <circle cx="24" cy="76" r="2.2" fill={color} opacity="0.4" />
-  </svg>
-);
-
-const Rosette = ({ color, accent, className = '', opacity = 1 }) => (
-  <svg viewBox="0 0 120 120" fill="none" className={className} style={{ opacity }}>
-    <circle cx="60" cy="60" r="42" stroke={color} strokeWidth="1.1" />
-    <circle cx="60" cy="60" r="30" stroke={accent} strokeWidth="0.9" opacity="0.75" />
-    <path d="M60 18 V34" stroke={color} strokeWidth="1" strokeLinecap="round" />
-    <path d="M60 86 V102" stroke={color} strokeWidth="1" strokeLinecap="round" />
-    <path d="M18 60 H34" stroke={color} strokeWidth="1" strokeLinecap="round" />
-    <path d="M86 60 H102" stroke={color} strokeWidth="1" strokeLinecap="round" />
-    <path d="M31 31 L42 42" stroke={accent} strokeWidth="0.9" strokeLinecap="round" />
-    <path d="M78 78 L89 89" stroke={accent} strokeWidth="0.9" strokeLinecap="round" />
-    <path d="M31 89 L42 78" stroke={accent} strokeWidth="0.9" strokeLinecap="round" />
-    <path d="M78 42 L89 31" stroke={accent} strokeWidth="0.9" strokeLinecap="round" />
-    <path d="M60 30 L68 52 L92 52 L72 66 L80 90 L60 74 L40 90 L48 66 L28 52 L52 52 Z" fill={accent} opacity="0.12" />
-    <circle cx="60" cy="60" r="10" stroke={color} strokeWidth="0.9" />
-  </svg>
-);
-
-const Mihrab = ({ color, accent, className = '' }) => (
-  <svg viewBox="0 0 420 420" fill="none" className={className}>
-    <path d="M88 356 V206 C88 132 142 72 210 42 C278 72 332 132 332 206 V356" stroke={color} strokeWidth="3.2" />
-    <path d="M120 356 V214 C120 150 162 98 210 70 C258 98 300 150 300 214 V356" stroke={accent} strokeWidth="2.2" opacity="0.75" />
-    <path d="M150 356 V228 C150 176 181 131 210 108 C239 131 270 176 270 228 V356" stroke={color} strokeWidth="1.8" opacity="0.75" />
-    <path d="M88 356 H332" stroke={color} strokeWidth="2.2" />
-    <path d="M110 318 H310" stroke={accent} strokeWidth="1.1" opacity="0.6" />
-    <circle cx="210" cy="124" r="14" stroke={color} strokeWidth="1.1" opacity="0.7" />
-    <path d="M210 90 V104" stroke={accent} strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const StarLattice = ({ color, accent, className = '', opacity = 0.18 }) => (
-  <svg viewBox="0 0 640 160" fill="none" className={className} style={{ opacity }}>
-    {Array.from({ length: 5 }).map((_, index) => {
-      const x = 72 + (index * 124);
-      return (
-        <g key={x} transform={`translate(${x} 80)`}>
-          <path d="M0 -34 L14 -14 L34 0 L14 14 L0 34 L-14 14 L-34 0 L-14 -14 Z" stroke={color} strokeWidth="1.2" />
-          <path d="M0 -50 L20 -20 L50 0 L20 20 L0 50 L-20 20 L-50 0 L-20 -20 Z" stroke={accent} strokeWidth="0.9" />
-          <circle cx="0" cy="0" r="7" fill={color} opacity="0.35" />
-        </g>
-      );
-    })}
-  </svg>
-);
-
-const ArchFrieze = ({ color, accent, className = '' }) => (
-  <svg viewBox="0 0 720 120" fill="none" className={className}>
-    {Array.from({ length: 6 }).map((_, index) => {
-      const x = 30 + (index * 114);
-      return (
-        <g key={x} transform={`translate(${x} 18)`}>
-          <path d="M12 78 V34 C12 16 27 0 45 0 C63 0 78 16 78 34 V78" stroke={color} strokeWidth="2" />
-          <path d="M24 78 V38 C24 26 34 16 45 10 C56 16 66 26 66 38 V78" stroke={accent} strokeWidth="1.1" opacity="0.78" />
-          <path d="M12 78 H78" stroke={color} strokeWidth="1.4" opacity="0.85" />
-          <circle cx="45" cy="28" r="4" fill={accent} opacity="0.55" />
-        </g>
-      );
-    })}
-  </svg>
-);
-
-const FooterMetaBlock = ({
-  label,
-  value,
-  line,
-  textColor,
-  align = 'left',
-  asset,
-  assetAlt,
-  assetClassName,
-}) => (
-  <div className={align === 'right' ? 'flex flex-col items-start sm:items-end' : 'flex flex-col items-start'}>
-    {asset && <img src={asset} alt={assetAlt} className={assetClassName} />}
-    <div className="w-full" style={{ borderTop: `1px solid ${line}`, paddingTop: '0.45rem', minWidth: 132 }}>
-      <p className="font-cinzel text-[0.56rem] sm:text-[0.66rem]" style={{ color: textColor, letterSpacing: '0.14em' }}>
-        {label}
-      </p>
-      <p className="font-crimson text-[0.76rem] sm:text-[0.9rem]" style={{ color: textColor }}>
-        {value}
-      </p>
-    </div>
-  </div>
-);
-
-const OFFICIAL_FIELD_WASH = 'linear-gradient(180deg, rgba(251, 247, 237, 0.9), rgba(244, 236, 220, 0.8))';
-
-const OfficialFieldMask = ({
-  className = '',
-  children,
-  align = 'center',
-  style = {},
-}) => (
-  <div
-    className={`absolute flex items-center justify-center rounded-[16px] px-3 ${className}`}
-    style={{
-      background: OFFICIAL_FIELD_WASH,
-      boxShadow: '0 8px 22px rgba(112, 82, 28, 0.08)',
-      textAlign: align,
-      ...style,
-    }}
-  >
-    {children}
-  </div>
-);
-
-const getOfficialNameSize = (value = '') => {
-  if (value.length > 24) return '2.2rem';
-  if (value.length > 18) return '2.55rem';
-  return '2.9rem';
+const formatCertificateDate = (value) => {
+  const date = value ? new Date(value) : new Date();
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 };
 
-const getOfficialCourseSize = (value = '') => {
-  if (value.length > 28) return '1.62rem';
-  if (value.length > 22) return '1.82rem';
-  return '2rem';
+const getStudentNameSize = (value = '') => {
+  if (value.length > 30) return '2.35rem';
+  if (value.length > 22) return '2.7rem';
+  if (value.length > 16) return '3rem';
+  return '3.3rem';
 };
 
-const CertificateShell = ({ palette, children, className = '', decorations = null }) => (
-  <div
-    className={`relative mx-auto w-[1120px] h-[792px] flex-shrink-0 overflow-hidden rounded-[30px] certificate-border px-8 py-8 ${className}`}
-    style={{
-      background: palette.surfaceBackground,
-      '--certificate-border-color': palette.border,
-      '--certificate-border-inner': palette.borderInnerShadow,
-      '--certificate-border-outer': palette.borderOuterShadow,
-    }}
-  >
-    <div
-      className="absolute inset-[14px] rounded-[24px]"
-      style={{ border: `1px solid ${palette.line}`, boxShadow: `inset 0 0 0 1px ${palette.borderInnerShadow}` }}
-    />
-    <div className="absolute inset-[30px] rounded-[18px]" style={{ border: `1px solid ${palette.line}`, opacity: 0.34 }} />
-    <div
-      className="absolute inset-0"
-      style={{
-        background: `
-          radial-gradient(circle at 15% 18%, ${palette.ornamentSoft} 0%, transparent 24%),
-          radial-gradient(circle at 85% 17%, ${palette.ornamentSoft} 0%, transparent 24%),
-          radial-gradient(circle at 14% 86%, ${palette.ornamentSoft} 0%, transparent 22%),
-          radial-gradient(circle at 84% 84%, ${palette.ornamentSoft} 0%, transparent 24%)
-        `,
-        opacity: 0.82,
-      }}
-    />
-    <CornerKnot color={palette.ornament} className="absolute top-2 left-2 w-16 h-16 sm:w-20 sm:h-20 opacity-80" />
-    <CornerKnot color={palette.ornament} className="absolute top-2 right-2 w-16 h-16 sm:w-20 sm:h-20 opacity-80 rotate-90" />
-    <CornerKnot color={palette.ornament} className="absolute bottom-2 right-2 w-16 h-16 sm:w-20 sm:h-20 opacity-80 rotate-180" />
-    <CornerKnot color={palette.ornament} className="absolute bottom-2 left-2 w-16 h-16 sm:w-20 sm:h-20 opacity-80 -rotate-90" />
-    {decorations}
-    <div className="relative z-10 h-full">{children}</div>
-  </div>
-);
+const getCourseNameSize = (value = '') => {
+  if (value.length > 36) return '1.55rem';
+  if (value.length > 28) return '1.8rem';
+  if (value.length > 20) return '2rem';
+  return '2.2rem';
+};
 
-const IjazahClassicTemplate = ({ cert, palette, templateMeta, signatureSrc, sealSrc, date }) => (
-  <CertificateShell
-    palette={palette}
-    decorations={(
-      <>
-        <PatternBand color={palette.ornament} soft={palette.border} className="absolute top-[12px] left-[54px] right-[54px] opacity-60" />
-        <PatternBand color={palette.ornament} soft={palette.border} className="absolute bottom-[12px] left-[54px] right-[54px] opacity-60 rotate-180" />
-        <Rosette color={palette.ornament} accent={palette.border} className="hidden sm:block absolute left-1/2 top-1/2 w-44 h-44 -translate-x-1/2 -translate-y-1/2" opacity={0.08} />
-      </>
-    )}
-  >
-    <div className="h-full flex flex-col items-center justify-between gap-3 text-center">
-      <div className="space-y-1.5">
-        <p className="font-amiri text-[1rem] sm:text-[1.45rem]" style={{ color: palette.academy }}>
-          بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
-        </p>
-        <p className="font-amiri text-[0.95rem] sm:text-[1.18rem]" style={{ color: palette.academy }}>
-          أكاديمية علي نواز
-        </p>
-        <p className="font-cinzel font-black text-[0.8rem] sm:text-[1.18rem]" style={{ color: palette.academy, letterSpacing: '0.18em' }}>
-          ALI NAWAZ ACADEMY
-        </p>
-        <p className="font-crimson italic text-[0.72rem] sm:text-[0.86rem]" style={{ color: palette.subtitle }}>
-          Premium Islamic certificate of completion
-        </p>
-      </div>
-
-      <div className="w-full max-w-3xl">
-        <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-80" />
-      </div>
-
-      <div className="w-full max-w-3xl rounded-[24px] px-4 py-3 sm:px-6 sm:py-4" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-        <p className="font-amiri text-[0.92rem] sm:text-[1.12rem]" style={{ color: palette.academy }}>شهادة الإتمام</p>
-        <p className="font-cinzel text-[0.66rem] sm:text-[0.82rem]" style={{ color: palette.heading, letterSpacing: '0.28em', textTransform: 'uppercase' }}>
-          {templateMeta.name}
-        </p>
-        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)`, margin: '0.45rem 0 0.4rem' }} />
-        <p className="font-crimson text-[0.76rem] sm:text-[0.84rem]" style={{ color: palette.body, opacity: 0.82 }}>
-          This is to certify that
-        </p>
-      </div>
-
-      <div className="w-full max-w-3xl rounded-[24px] px-4 py-4 sm:px-8 sm:py-5" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-        <h1 className="font-cinzel font-black text-[1.25rem] sm:text-[2.2rem] break-words" style={{ color: palette.student, letterSpacing: '0.05em' }}>
-          {cert.studentName}
-        </h1>
-        <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)`, marginTop: '0.4rem' }} />
-      </div>
-
-      <div className="space-y-1.5">
-        <p className="font-crimson text-[0.78rem] sm:text-[0.9rem]" style={{ color: palette.body, opacity: 0.78 }}>
-          has successfully completed the course
-        </p>
-        <h2 className="font-cinzel font-bold text-[0.95rem] sm:text-[1.45rem] break-words max-w-3xl" style={{ color: palette.course, letterSpacing: '0.04em' }}>
-          {cert.courseName}
-        </h2>
-      </div>
-
-      <div className="w-full grid grid-cols-1 sm:grid-cols-[1fr,auto,1fr] gap-3 sm:items-end">
-        <FooterMetaBlock
-          label="DATE OF COMPLETION"
-          value={date}
-          line={palette.line}
-          textColor={palette.signature}
-          asset={sealSrc}
-          assetAlt="Ali Nawaz Academy seal"
-          assetClassName="w-14 h-14 sm:w-16 sm:h-16 object-contain mb-1.5"
-        />
-        <div className="text-center flex flex-col items-center justify-end gap-1.5">
-          <Rosette color={palette.ornament} accent={palette.border} className="w-12 h-12 sm:w-14 sm:h-14" opacity={0.85} />
-          <p className="font-cinzel text-[0.52rem] sm:text-[0.6rem]" style={{ color: palette.heading, letterSpacing: '0.14em' }}>
-            CERTIFICATE ID: {cert.id}
-          </p>
-        </div>
-        <FooterMetaBlock
-          label="AUTHORIZED BY"
-          value="Ali Nawaz Academy"
-          line={palette.line}
-          textColor={palette.signature}
-          align="right"
-          asset={signatureSrc}
-          assetAlt="Ali Nawaz Academy signature"
-          assetClassName="h-8 sm:h-10 w-auto object-contain mb-1.5"
-        />
-      </div>
-    </div>
-  </CertificateShell>
-);
-
-const OttomanRoyalTemplate = ({ cert, palette, templateMeta, signatureSrc, sealSrc, date }) => (
-  <CertificateShell
-    palette={palette}
-    decorations={(
-      <>
-        <Rosette color={palette.ornament} accent={palette.border} className="absolute top-[38px] left-[52px] w-20 h-20 sm:w-24 sm:h-24" opacity={0.16} />
-        <Rosette color={palette.ornament} accent={palette.border} className="absolute top-[38px] right-[52px] w-20 h-20 sm:w-24 sm:h-24" opacity={0.16} />
-        <div className="absolute top-[74px] left-[118px] right-[118px] h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)` }} />
-      </>
-    )}
-  >
-    <div className="h-full flex flex-col justify-between gap-3 text-center">
-      <div className="space-y-1 max-w-[34rem] mx-auto">
-        <p className="font-amiri text-[0.96rem] sm:text-[1.22rem]" style={{ color: palette.academy }}>فرمان الإجازة</p>
-        <div className="font-cinzel font-black leading-tight" style={{ color: palette.academy }}>
-          <p className="text-[0.76rem] sm:text-[1.02rem]" style={{ letterSpacing: '0.18em' }}>OTTOMAN ROYAL</p>
-          <p className="text-[0.74rem] sm:text-[1rem] mt-0.5" style={{ letterSpacing: '0.14em' }}>CERTIFICATE</p>
-        </div>
-        <p className="font-crimson text-[0.72rem] sm:text-[0.84rem]" style={{ color: palette.subtitle }}>
-          Issued by Ali Nawaz Academy in honor of disciplined sacred study
-        </p>
-      </div>
-
-      <div className="grid sm:grid-cols-[1fr,auto,1fr] gap-3 items-center">
-        <div className="hidden sm:flex justify-start">
-          <Rosette color={palette.ornament} accent={palette.border} className="w-14 h-14 sm:w-16 sm:h-16" />
-        </div>
-        <div className="rounded-[24px] px-4 py-4 sm:px-6 sm:py-5" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-          <p className="font-amiri text-[0.96rem] sm:text-[1.12rem]" style={{ color: palette.academy }}>أكاديمية علي نواز</p>
-          <p className="font-cinzel text-[0.64rem] sm:text-[0.78rem]" style={{ color: palette.heading, letterSpacing: '0.28em', textTransform: 'uppercase' }}>
-            {templateMeta.name}
-          </p>
-          <p className="font-crimson text-[0.74rem] sm:text-[0.84rem] mt-2" style={{ color: palette.body }}>
-            Presented with honor to
-          </p>
-          <h1 className="font-cinzel font-black text-[1.22rem] sm:text-[2.1rem] break-words mt-1.5" style={{ color: palette.student, letterSpacing: '0.05em' }}>
-            {cert.studentName}
-          </h1>
-          <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)`, marginTop: '0.4rem' }} />
-          <p className="font-crimson text-[0.75rem] sm:text-[0.84rem] mt-2" style={{ color: palette.body, opacity: 0.84 }}>
-            for completion of
-          </p>
-          <h2 className="font-cinzel font-bold text-[0.95rem] sm:text-[1.34rem] mt-1.5 break-words" style={{ color: palette.course }}>
-            {cert.courseName}
-          </h2>
-        </div>
-        <div className="hidden sm:flex justify-end">
-          <Rosette color={palette.ornament} accent={palette.border} className="w-14 h-14 sm:w-16 sm:h-16" />
-        </div>
-      </div>
-
-      <div className="w-full max-w-4xl mx-auto">
-        <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-90" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr,1fr] gap-3 sm:items-end">
-        <FooterMetaBlock
-          label="DATE OF COMPLETION"
-          value={date}
-          line={palette.line}
-          textColor={palette.signature}
-          asset={sealSrc}
-          assetAlt="Ali Nawaz Academy seal"
-          assetClassName="w-14 h-14 sm:w-16 sm:h-16 object-contain mb-1.5"
-        />
-        <div className="rounded-[18px] px-3 py-3 text-center" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-          <p className="font-amiri text-[0.86rem] sm:text-[0.96rem]" style={{ color: palette.academy }}>رقم الشهادة</p>
-          <p className="font-cinzel text-[0.56rem] sm:text-[0.66rem] mt-1.5 break-all" style={{ color: palette.heading, letterSpacing: '0.12em' }}>
-            {cert.id}
-          </p>
-        </div>
-        <FooterMetaBlock
-          label="AUTHORIZED BY"
-          value="Ali Nawaz Academy"
-          line={palette.line}
-          textColor={palette.signature}
-          align="right"
-          asset={signatureSrc}
-          assetAlt="Ali Nawaz Academy signature"
-          assetClassName="h-8 sm:h-10 w-auto object-contain mb-1.5"
-        />
-      </div>
-    </div>
-  </CertificateShell>
-);
-
-const MihrabModernTemplate = ({ cert, palette, templateMeta, signatureSrc, sealSrc, date }) => (
-  <CertificateShell
-    palette={palette}
-    decorations={(
-      <Mihrab color={palette.line} accent={palette.ornament} className="hidden md:block absolute right-[46px] top-1/2 h-[72%] w-auto -translate-y-1/2 opacity-[0.14]" />
-    )}
-  >
-    <div className="h-full grid md:grid-cols-[1.12fr,0.88fr] gap-4 items-stretch">
-      <div className="flex flex-col justify-between gap-4 text-left">
-        <div className="space-y-2">
-          <div className="inline-flex items-center rounded-full px-3 py-1.5" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-            <span className="font-cinzel text-[0.58rem] sm:text-[0.66rem]" style={{ color: palette.heading, letterSpacing: '0.24em' }}>
-              {templateMeta.style.toUpperCase()}
-            </span>
-          </div>
-          <p className="font-amiri text-[0.96rem] sm:text-[1.18rem]" style={{ color: palette.academy }}>شهادة إتمام معتمدة</p>
-          <h1 className="font-cinzel font-black text-[1.18rem] sm:text-[1.8rem] leading-tight" style={{ color: palette.academy, letterSpacing: '0.08em' }}>
-            CERTIFICATE OF COMPLETION
-          </h1>
-          <p className="font-crimson text-[0.74rem] sm:text-[0.86rem] max-w-xl" style={{ color: palette.body, opacity: 0.8 }}>
-            Ali Nawaz Academy certifies that the student named below has completed the required course of study in full.
-          </p>
-        </div>
-
-        <div className="rounded-[28px] px-4 py-4 sm:px-6 sm:py-5" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-          <p className="font-crimson text-[0.72rem] sm:text-[0.78rem]" style={{ color: palette.subtitle, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-            Student Name
-          </p>
-          <h2 className="font-cinzel font-black text-[1.22rem] sm:text-[2rem] mt-1.5 break-words" style={{ color: palette.student }}>
-            {cert.studentName}
-          </h2>
-          <div style={{ height: 2, background: `linear-gradient(90deg, ${palette.line}, transparent)`, marginTop: '0.45rem' }} />
-          <p className="font-crimson text-[0.72rem] sm:text-[0.78rem] mt-3" style={{ color: palette.subtitle, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-            Completed Course
-          </p>
-          <p className="font-cinzel font-bold text-[0.92rem] sm:text-[1.28rem] mt-1.5 break-words" style={{ color: palette.course }}>
-            {cert.courseName}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr] gap-3 items-end">
-          <FooterMetaBlock
-            label="DATE OF COMPLETION"
-            value={date}
-            line={palette.line}
-            textColor={palette.signature}
-            asset={sealSrc}
-            assetAlt="Ali Nawaz Academy seal"
-            assetClassName="w-12 h-12 sm:w-14 sm:h-14 object-contain mb-1.5"
-          />
-          <FooterMetaBlock
-            label="AUTHORIZED BY"
-            value="Ali Nawaz Academy"
-            line={palette.line}
-            textColor={palette.signature}
-            align="right"
-            asset={signatureSrc}
-            assetAlt="Ali Nawaz Academy signature"
-            assetClassName="h-8 sm:h-9 w-auto object-contain mb-1.5"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col">
-        <div className="rounded-[24px] h-full min-h-[160px] flex flex-col justify-between p-4 sm:p-6" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-          <div className="space-y-2 text-center">
-            <p className="font-amiri text-[0.92rem] sm:text-[1.08rem]" style={{ color: palette.academy }}>أكاديمية علي نواز</p>
-            <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-80" />
-            <p className="font-cinzel text-[0.64rem] sm:text-[0.74rem]" style={{ color: palette.heading, letterSpacing: '0.24em', textTransform: 'uppercase' }}>
-              {templateMeta.name}
-            </p>
-          </div>
-
-          <div className="flex justify-center">
-            <Mihrab color={palette.line} accent={palette.ornament} className="w-36 h-36 sm:w-44 sm:h-44" />
-          </div>
-
-          <div className="text-center">
-            <p className="font-cinzel text-[0.52rem] sm:text-[0.6rem]" style={{ color: palette.heading, letterSpacing: '0.14em' }}>
-              CERTIFICATE ID
-            </p>
-            <p className="font-crimson text-[0.74rem] sm:text-[0.84rem] break-all mt-1.5" style={{ color: palette.signature }}>
-              {cert.id}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </CertificateShell>
-);
-
-const ManuscriptHeritageTemplate = ({ cert, palette, templateMeta, signatureSrc, sealSrc, date }) => (
-  <CertificateShell
-    palette={palette}
-    decorations={(
-      <>
-        <div className="absolute top-[24px] left-[48px] right-[48px] rounded-full h-[1px]" style={{ background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)` }} />
-        <div className="absolute bottom-[24px] left-[48px] right-[48px] rounded-full h-[1px]" style={{ background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)` }} />
-      </>
-    )}
-  >
-    <div className="h-full flex flex-col justify-between gap-4">
-      <div className="grid md:grid-cols-[1fr,auto,1fr] gap-3 items-center text-center">
-        <div className="hidden md:flex justify-start">
-          <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-80" />
-        </div>
-        <div>
-          <p className="font-amiri text-[0.96rem] sm:text-[1.14rem]" style={{ color: palette.academy }}>
-            سجل الإجازة العلمية
-          </p>
-          <p className="font-cinzel font-black text-[0.76rem] sm:text-[1.08rem]" style={{ color: palette.academy, letterSpacing: '0.18em' }}>
-            MANUSCRIPT HERITAGE CERTIFICATE
-          </p>
-        </div>
-        <div className="hidden md:flex justify-end">
-          <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-80" />
-        </div>
-      </div>
-
-      <div className="rounded-[26px] p-4 sm:p-6 md:p-7" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-        <div className="grid md:grid-cols-[0.72fr,1.28fr] gap-4 items-start">
-          <div className="space-y-3">
-            <div className="rounded-[18px] p-3" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-              <p className="font-cinzel text-[0.56rem] sm:text-[0.64rem]" style={{ color: palette.heading, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-                Institution
-              </p>
-              <p className="font-amiri text-[0.92rem] sm:text-[1.04rem] mt-1.5" style={{ color: palette.academy }}>
-                أكاديمية علي نواز
-              </p>
-              <p className="font-cinzel font-bold text-[0.74rem] sm:text-[0.84rem] mt-1" style={{ color: palette.signature }}>
-                Ali Nawaz Academy
-              </p>
-            </div>
-            <Rosette color={palette.ornament} accent={palette.border} className="w-[4.5rem] h-[4.5rem] sm:w-20 sm:h-20 mx-auto md:mx-0" opacity={0.9} />
-            <div className="rounded-[18px] p-3" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-              <p className="font-cinzel text-[0.56rem] sm:text-[0.64rem]" style={{ color: palette.heading, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-                Certificate ID
-              </p>
-              <p className="font-crimson text-[0.72rem] sm:text-[0.82rem] break-all mt-1.5" style={{ color: palette.signature }}>
-                {cert.id}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="font-crimson text-[0.78rem] sm:text-[0.88rem]" style={{ color: palette.body, opacity: 0.82 }}>
-              This manuscript-style certificate records that
-            </p>
-            <div className="rounded-[22px] px-4 py-4 sm:px-6 sm:py-5" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-              <h1 className="font-cinzel font-black text-[1.2rem] sm:text-[2rem] break-words" style={{ color: palette.student, letterSpacing: '0.05em' }}>
-                {cert.studentName}
-              </h1>
-            </div>
-            <p className="font-crimson text-[0.78rem] sm:text-[0.88rem]" style={{ color: palette.body, opacity: 0.82 }}>
-              has completed the course of study titled
-            </p>
-            <h2 className="font-cinzel font-bold text-[0.9rem] sm:text-[1.28rem] break-words" style={{ color: palette.course }}>
-              {cert.courseName}
-            </h2>
-            <div className="w-full max-w-2xl">
-              <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-85" />
-            </div>
-            <p className="font-crimson text-[0.68rem] sm:text-[0.78rem]" style={{ color: palette.subtitle }}>
-              Template: {templateMeta.name}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr] gap-3 items-end">
-        <FooterMetaBlock
-          label="DATE OF COMPLETION"
-          value={date}
-          line={palette.line}
-          textColor={palette.signature}
-          asset={sealSrc}
-          assetAlt="Ali Nawaz Academy seal"
-          assetClassName="w-14 h-14 sm:w-16 sm:h-16 object-contain mb-1.5"
-        />
-        <FooterMetaBlock
-          label="AUTHORIZED BY"
-          value="Ali Nawaz Academy"
-          line={palette.line}
-          textColor={palette.signature}
-          align="right"
-          asset={signatureSrc}
-          assetAlt="Ali Nawaz Academy signature"
-          assetClassName="h-8 sm:h-10 w-auto object-contain mb-1.5"
-        />
-      </div>
-    </div>
-  </CertificateShell>
-);
-
-const AndalusianNoorTemplate = ({ cert, palette, templateMeta, signatureSrc, sealSrc, date }) => (
-  <CertificateShell
-    palette={palette}
-    decorations={(
-      <>
-        <ArchFrieze color={palette.ornament} accent={palette.border} className="absolute top-[18px] left-[34px] right-[34px] opacity-55" />
-        <StarLattice color={palette.ornament} accent={palette.border} className="absolute bottom-[2px] left-[44px] right-[44px]" opacity={0.14} />
-      </>
-    )}
-  >
-    <div className="h-full flex flex-col justify-between gap-3">
-      <div className="text-center space-y-1.5">
-        <p className="font-amiri text-[0.98rem] sm:text-[1.2rem]" style={{ color: palette.academy }}>
-          شهادة نور الأندلس
-        </p>
-        <p className="font-cinzel font-black text-[0.82rem] sm:text-[1.12rem]" style={{ color: palette.academy, letterSpacing: '0.2em' }}>
-          ANDALUSIAN NOOR
-        </p>
-        <p className="font-crimson text-[0.72rem] sm:text-[0.84rem]" style={{ color: palette.subtitle }}>
-          A luminous Andalusian-inspired ijazah with layered arches and scholarly calm
-        </p>
-      </div>
-
-      <div className="grid md:grid-cols-[0.92fr,1.08fr] gap-4 items-center">
-        <div className="rounded-[24px] p-4 sm:p-5 h-full" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-          <div className="flex h-full flex-col justify-between gap-3">
-            <div className="space-y-2 text-center md:text-left">
-              <p className="font-cinzel text-[0.6rem] sm:text-[0.7rem]" style={{ color: palette.heading, letterSpacing: '0.24em', textTransform: 'uppercase' }}>
-                {templateMeta.style}
-              </p>
-              <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-80" />
-            </div>
-            <div className="flex justify-center">
-              <Mihrab color={palette.line} accent={palette.ornament} className="w-28 h-28 sm:w-36 sm:h-36" />
-            </div>
-            <div className="rounded-[18px] p-3 text-center" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-              <p className="font-cinzel text-[0.56rem] sm:text-[0.64rem]" style={{ color: palette.heading, letterSpacing: '0.16em' }}>
-                CERTIFICATE ID
-              </p>
-              <p className="font-crimson text-[0.7rem] sm:text-[0.8rem] break-all mt-1.5" style={{ color: palette.signature }}>
-                {cert.id}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3 text-center md:text-left">
-          <div className="rounded-[24px] px-4 py-4 sm:px-6 sm:py-5" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-            <p className="font-crimson text-[0.72rem] sm:text-[0.82rem]" style={{ color: palette.body, opacity: 0.8 }}>
-              This honorable certificate is presented to
-            </p>
-            <h1 className="font-cinzel font-black text-[1.24rem] sm:text-[2.08rem] mt-2 break-words" style={{ color: palette.student }}>
-              {cert.studentName}
-            </h1>
-            <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)`, marginTop: '0.45rem' }} />
-            <p className="font-crimson text-[0.72rem] sm:text-[0.82rem] mt-2.5" style={{ color: palette.body, opacity: 0.8 }}>
-              for completing the study path
-            </p>
-            <h2 className="font-cinzel font-bold text-[0.9rem] sm:text-[1.28rem] mt-1.5 break-words" style={{ color: palette.course }}>
-              {cert.courseName}
-            </h2>
-          </div>
-
-          <div className="rounded-[18px] px-4 py-3" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-            <p className="font-amiri text-[0.86rem] sm:text-[1rem]" style={{ color: palette.academy }}>
-              أكاديمية علي نواز تبارك هذا الإنجاز العلمي
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto,1fr] gap-3 items-end">
-        <FooterMetaBlock
-          label="DATE OF COMPLETION"
-          value={date}
-          line={palette.line}
-          textColor={palette.signature}
-          asset={sealSrc}
-          assetAlt="Ali Nawaz Academy seal"
-          assetClassName="w-14 h-14 sm:w-16 sm:h-16 object-contain mb-1.5"
-        />
-        <div className="flex justify-center">
-          <Rosette color={palette.ornament} accent={palette.border} className="w-12 h-12 sm:w-14 sm:h-14" opacity={0.85} />
-        </div>
-        <FooterMetaBlock
-          label="AUTHORIZED BY"
-          value="Ali Nawaz Academy"
-          line={palette.line}
-          textColor={palette.signature}
-          align="right"
-          asset={signatureSrc}
-          assetAlt="Ali Nawaz Academy signature"
-          assetClassName="h-8 sm:h-10 w-auto object-contain mb-1.5"
-        />
-      </div>
-    </div>
-  </CertificateShell>
-);
-
-const SafavidScriptTemplate = ({ cert, palette, templateMeta, signatureSrc, sealSrc, date }) => (
-  <CertificateShell
-    palette={palette}
-    decorations={(
-      <>
-        <StarLattice color={palette.ornament} accent={palette.border} className="absolute top-[22px] left-[26px] right-[26px]" opacity={0.12} />
-        <Rosette color={palette.ornament} accent={palette.border} className="absolute left-[30px] top-1/2 w-20 h-20 sm:w-24 sm:h-24 -translate-y-1/2" opacity={0.18} />
-        <Rosette color={palette.ornament} accent={palette.border} className="absolute right-[30px] top-1/2 w-20 h-20 sm:w-24 sm:h-24 -translate-y-1/2" opacity={0.18} />
-      </>
-    )}
-  >
-    <div className="h-full flex flex-col justify-between gap-3">
-      <div className="text-center space-y-1">
-        <p className="font-amiri text-[1rem] sm:text-[1.24rem]" style={{ color: palette.academy }}>
-          لوح الخط والإجازة
-        </p>
-        <p className="font-cinzel font-black text-[0.8rem] sm:text-[1.06rem]" style={{ color: palette.academy, letterSpacing: '0.22em' }}>
-          SAFAVID SCRIPT
-        </p>
-        <p className="font-crimson text-[0.7rem] sm:text-[0.82rem]" style={{ color: palette.subtitle }}>
-          Ceremonial calligraphy framing inspired by Persian manuscript courts
-        </p>
-      </div>
-
-      <div className="rounded-[26px] px-4 py-4 sm:px-6 sm:py-5" style={{ background: palette.panelStrong, border: `1px solid ${palette.line}` }}>
-        <div className="grid md:grid-cols-[0.94fr,1.06fr] gap-4 items-center">
-          <div className="space-y-3 text-center">
-            <div className="rounded-[20px] px-4 py-4" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-              <p className="font-amiri text-[0.9rem] sm:text-[1.06rem]" style={{ color: palette.academy }}>
-                فرمان تکمیل دوره
-              </p>
-              <PatternBand color={palette.ornament} soft={palette.border} className="w-full opacity-80 mt-2" />
-              <p className="font-cinzel text-[0.58rem] sm:text-[0.68rem] mt-2" style={{ color: palette.heading, letterSpacing: '0.18em' }}>
-                {templateMeta.name.toUpperCase()}
-              </p>
-            </div>
-            <div className="rounded-[18px] px-3 py-3" style={{ background: palette.panel, border: `1px solid ${palette.line}` }}>
-              <p className="font-cinzel text-[0.56rem] sm:text-[0.64rem]" style={{ color: palette.heading, letterSpacing: '0.16em' }}>
-                CERTIFICATE ID
-              </p>
-              <p className="font-crimson text-[0.7rem] sm:text-[0.8rem] break-all mt-1.5" style={{ color: palette.signature }}>
-                {cert.id}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2 text-center">
-            <p className="font-crimson text-[0.72rem] sm:text-[0.82rem]" style={{ color: palette.body, opacity: 0.82 }}>
-              Presented by Ali Nawaz Academy to
-            </p>
-            <h1 className="font-cinzel font-black text-[1.24rem] sm:text-[2.05rem] break-words" style={{ color: palette.student }}>
-              {cert.studentName}
-            </h1>
-            <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${palette.line}, transparent)`, marginTop: '0.45rem' }} />
-            <p className="font-crimson text-[0.72rem] sm:text-[0.82rem] mt-2" style={{ color: palette.body, opacity: 0.8 }}>
-              for distinguished completion of
-            </p>
-            <h2 className="font-cinzel font-bold text-[0.92rem] sm:text-[1.3rem] break-words" style={{ color: palette.course }}>
-              {cert.courseName}
-            </h2>
-            <p className="font-amiri text-[0.82rem] sm:text-[0.96rem] mt-1" style={{ color: palette.academy }}>
-              بإشراف أكاديمية علي نواز
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr] gap-3 items-end">
-        <FooterMetaBlock
-          label="DATE OF COMPLETION"
-          value={date}
-          line={palette.line}
-          textColor={palette.signature}
-          asset={sealSrc}
-          assetAlt="Ali Nawaz Academy seal"
-          assetClassName="w-14 h-14 sm:w-16 sm:h-16 object-contain mb-1.5"
-        />
-        <FooterMetaBlock
-          label="AUTHORIZED BY"
-          value="Ali Nawaz Academy"
-          line={palette.line}
-          textColor={palette.signature}
-          align="right"
-          asset={signatureSrc}
-          assetAlt="Ali Nawaz Academy signature"
-          assetClassName="h-8 sm:h-10 w-auto object-contain mb-1.5"
-        />
-      </div>
-    </div>
-  </CertificateShell>
-);
-
-const AcademyOfficialTemplate = ({ cert, signatureSrc, date }) => {
-  const englishNameSize = getOfficialNameSize(cert.studentName);
-  const englishCourseSize = getOfficialCourseSize(cert.courseName);
+const CornerOrnament = ({ position }) => {
+  const positionStyle = {
+    topLeft: { top: 18, left: 18, transform: 'none' },
+    topRight: { top: 18, right: 18, transform: 'scaleX(-1)' },
+    bottomLeft: { bottom: 18, left: 18, transform: 'scaleY(-1)' },
+    bottomRight: { bottom: 18, right: 18, transform: 'scale(-1)' },
+  }[position];
 
   return (
-    <div className="relative mx-auto w-[1120px] h-[792px] flex-shrink-0 overflow-hidden rounded-[28px] shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
-      <img
-        src={certificateBackground}
-        alt="Ali Nawaz Academy official certificate background"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      <div className="absolute inset-[10px] rounded-[24px] shadow-[inset_0_0_0_1px_rgba(149,113,37,0.14)]" />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'radial-gradient(circle at center, rgba(255,255,255,0.08), transparent 44%)',
-        }}
-      />
-
-      <OfficialFieldMask className="left-[68px] top-[332px] h-[52px] w-[432px]">
-        <div
-          className="font-cormorant italic font-semibold leading-none break-words"
-          style={{
-            color: '#bb8e38',
-            fontSize: englishNameSize,
-            textShadow: '0 2px 8px rgba(255,255,255,0.35)',
-          }}
-        >
-          {cert.studentName}
-        </div>
-      </OfficialFieldMask>
-
-      <OfficialFieldMask className="left-[698px] top-[334px] h-[50px] w-[270px]">
-        <div
-          className="font-cormorant font-semibold leading-none break-words"
-          style={{
-            color: '#1d7450',
-            fontSize: '1.9rem',
-            textShadow: '0 2px 8px rgba(255,255,255,0.28)',
-          }}
-        >
-          {cert.studentName}
-        </div>
-      </OfficialFieldMask>
-
-      <OfficialFieldMask className="left-[186px] top-[562px] h-[74px] w-[286px]">
-        <div
-          className="font-cormorant font-semibold leading-[1.04] break-words"
-          style={{
-            color: '#2f7b5d',
-            fontSize: englishCourseSize,
-            textShadow: '0 2px 8px rgba(255,255,255,0.22)',
-          }}
-        >
-          {cert.courseName}
-        </div>
-      </OfficialFieldMask>
-
-      <OfficialFieldMask className="left-[716px] top-[560px] h-[72px] w-[248px]">
-        <div
-          className="font-cormorant font-semibold leading-[1.05] break-words"
-          style={{
-            color: '#2f7b5d',
-            fontSize: '1.45rem',
-            textShadow: '0 2px 8px rgba(255,255,255,0.22)',
-          }}
-        >
-          {cert.courseName}
-        </div>
-      </OfficialFieldMask>
-
-      <div className="absolute left-[106px] bottom-[98px] min-w-[124px] rounded-[10px] px-3 py-1.5" style={{ background: 'rgba(248, 243, 231, 0.92)' }}>
-        <div className="font-cinzel text-[0.62rem] break-all" style={{ color: '#6e8d78', letterSpacing: '0.04em' }}>
-          {cert.id}
-        </div>
-      </div>
-
-      <div className="absolute left-[104px] bottom-[42px] px-2 py-0.5" style={{ background: 'rgba(248, 243, 231, 0.72)', borderRadius: 8 }}>
-        <div className="font-crimson text-[0.88rem]" style={{ color: '#546558' }}>
-          {date}
-        </div>
-      </div>
-
-      <div className="absolute left-[712px] bottom-[74px] w-[132px] flex items-center justify-center">
-        <img
-          src={signatureSrc}
-          alt="Ali Nawaz Academy signature"
-          className="h-14 w-auto object-contain opacity-95 drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)]"
-        />
-      </div>
-    </div>
+    <svg
+      viewBox="0 0 100 100"
+      className="absolute h-16 w-16 sm:h-20 sm:w-20"
+      style={{ ...positionStyle, color: CERTIFICATE_LAYOUT.frameGold }}
+      fill="none"
+    >
+      <path d="M8 70C8 26 26 8 70 8" stroke="currentColor" strokeWidth="1.25" opacity="0.8" />
+      <path d="M16 72C16 33 33 16 72 16" stroke="currentColor" strokeWidth="0.8" opacity="0.45" />
+      <path d="M8 50C22 48 31 40 38 28C42 40 52 48 68 50C52 53 42 61 38 74C31 61 22 53 8 50Z" fill="currentColor" opacity="0.15" />
+      <path d="M30 18L40 28L30 38L20 28Z" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
+      <path d="M18 50L28 60L18 70L8 60Z" stroke="currentColor" strokeWidth="0.8" opacity="0.45" />
+      <path d="M70 8V34" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+      <path d="M8 70H34" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+    </svg>
   );
 };
 
-export default function CertificateCanvas({ cert, template, theme, signatureImage }) {
-  const { platformSettings } = useApp();
-  const activeTemplate = template || platformSettings.certificateTemplate || cert.template;
-  const activeTheme = theme || platformSettings.certificateTheme || cert.theme;
-  const templateMeta = getCertificateTemplateMeta(activeTemplate);
-  const palette = getCertificateThemeMeta(activeTheme);
-  const date = useMemo(() => formatCertificateDate(cert.issuedAt), [cert.issuedAt]);
-  const signatureSrc = signatureImage || platformSettings.certificateSignature || signatureAsset;
+const DividerMotif = () => (
+  <div className="flex items-center justify-center gap-4" style={{ color: CERTIFICATE_LAYOUT.frameGold }}>
+    <span className="h-px w-20 sm:w-24" style={{ background: `linear-gradient(90deg, transparent, ${CERTIFICATE_LAYOUT.frameGold}, transparent)` }} />
+    <svg viewBox="0 0 48 16" className="h-4 w-12" fill="none">
+      <path d="M8 8L16 0L24 8L16 16L8 8Z" stroke="currentColor" strokeWidth="1" />
+      <path d="M24 8L32 0L40 8L32 16L24 8Z" stroke="currentColor" strokeWidth="1" opacity="0.55" />
+      <circle cx="16" cy="8" r="2.5" fill="currentColor" opacity="0.35" />
+      <circle cx="32" cy="8" r="2.5" fill="currentColor" opacity="0.18" />
+    </svg>
+    <span className="h-px w-20 sm:w-24" style={{ background: `linear-gradient(90deg, transparent, ${CERTIFICATE_LAYOUT.frameGold}, transparent)` }} />
+  </div>
+);
 
-  const commonProps = {
-    cert,
-    palette,
-    templateMeta,
-    signatureSrc,
-    sealSrc: sealImage,
-    date,
-  };
+const MetaCard = ({ label, value, align = 'center' }) => (
+  <div
+    className="rounded-[18px] px-4 py-3 text-center min-h-[84px] flex flex-col justify-center"
+    style={{
+      background: 'rgba(255, 250, 239, 0.7)',
+      border: `1px solid ${CERTIFICATE_LAYOUT.line}`,
+      boxShadow: '0 12px 28px rgba(120, 93, 42, 0.07)',
+      textAlign: align,
+    }}
+  >
+    <p
+      className="font-cinzel text-[0.56rem] uppercase"
+      style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.22em' }}
+    >
+      {label}
+    </p>
+    <p
+      className="mt-2 break-words"
+      style={{
+        color: CERTIFICATE_LAYOUT.emeraldDeep,
+        fontSize: value.length > 20 ? '0.8rem' : '0.92rem',
+        lineHeight: 1.3,
+      }}
+    >
+      {value}
+    </p>
+  </div>
+);
 
-  switch (templateMeta.id) {
-    case 'academy-official':
-      return <AcademyOfficialTemplate {...commonProps} />;
-    case 'ottoman-royal':
-      return <OttomanRoyalTemplate {...commonProps} />;
-    case 'mihrab-modern':
-      return <MihrabModernTemplate {...commonProps} />;
-    case 'manuscript-heritage':
-      return <ManuscriptHeritageTemplate {...commonProps} />;
-    case 'andalusian-noor':
-      return <AndalusianNoorTemplate {...commonProps} />;
-    case 'safavid-script':
-      return <SafavidScriptTemplate {...commonProps} />;
-    case 'ijazah-classic':
-      return <IjazahClassicTemplate {...commonProps} />;
-    default:
-      return <AcademyOfficialTemplate {...commonProps} />;
-  }
+const SealBadge = () => (
+  <div className="flex flex-col items-center justify-center gap-1.5">
+    <div
+      className="relative flex h-24 w-24 items-center justify-center rounded-full"
+      style={{
+        background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(244, 231, 204, 0.92))',
+        border: `1.5px solid ${CERTIFICATE_LAYOUT.frameGold}`,
+        boxShadow: '0 12px 24px rgba(130, 92, 25, 0.16)',
+      }}
+    >
+      <div
+        className="absolute inset-[7px] rounded-full"
+        style={{ border: `1px dashed ${CERTIFICATE_LAYOUT.frameGold}`, opacity: 0.8 }}
+      />
+      <img src={sealImage} alt="Ali Nawaz Academy seal" className="h-16 w-16 object-contain" />
+    </div>
+    <div className="text-center">
+      <p className="font-cinzel text-[0.5rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.18em' }}>
+        Traditional
+      </p>
+      <p className="font-cormorant text-[0.9rem] font-semibold leading-none mt-0.5" style={{ color: CERTIFICATE_LAYOUT.ink }}>
+        Ijazah
+      </p>
+      <p className="font-cinzel text-[0.5rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.18em' }}>
+        Inspired Presentation
+      </p>
+    </div>
+  </div>
+);
+
+const SignatureBlock = ({ signatureSrc }) => (
+  <div className="flex flex-col items-start gap-2 self-end">
+    <div className="flex h-14 w-40 items-end">
+      <img src={signatureSrc} alt="Ali Nawaz Academy signature" className="max-h-12 w-auto object-contain" />
+    </div>
+    <div className="w-full" style={{ borderTop: `1px solid ${CERTIFICATE_LAYOUT.frameGold}` }}>
+      <p className="mt-2 font-cinzel text-[0.55rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.16em' }}>
+        Authorized Instructor
+      </p>
+      <p className="text-[0.88rem] leading-tight" style={{ color: CERTIFICATE_LAYOUT.ink }}>
+        Ali Nawaz Academy
+      </p>
+    </div>
+  </div>
+);
+
+const QrBlock = ({ qrCodeDataUrl }) => (
+  <div className="flex flex-col items-center gap-1.5 self-end">
+    <div
+      className="flex h-24 w-24 items-center justify-center rounded-[14px] bg-white p-2"
+      style={{ border: `1px solid ${CERTIFICATE_LAYOUT.line}`, boxShadow: '0 12px 24px rgba(110, 84, 31, 0.08)' }}
+    >
+      {qrCodeDataUrl ? (
+        <img src={qrCodeDataUrl} alt="Certificate verification QR code" className="h-full w-full object-contain" />
+      ) : (
+        <div className="h-full w-full rounded-[10px]" style={{ background: 'linear-gradient(135deg, rgba(31,106,74,0.14), rgba(201,162,78,0.14))' }} />
+      )}
+    </div>
+    <div className="text-center">
+      <p className="font-cinzel text-[0.56rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.16em' }}>
+        Verify Certificate
+      </p>
+      <p className="text-[0.66rem] leading-tight" style={{ color: CERTIFICATE_LAYOUT.inkSoft }}>
+        Scan to confirm authenticity
+      </p>
+    </div>
+  </div>
+);
+
+const IssuerNote = ({ certificateId }) => (
+  <div className="max-w-[11.75rem] text-right self-end">
+    <p className="font-cinzel text-[0.58rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.emerald, letterSpacing: '0.16em' }}>
+      Issued by Ali Nawaz Academy
+    </p>
+    <p className="mt-2 text-[0.78rem] leading-5" style={{ color: CERTIFICATE_LAYOUT.ink }}>
+      May this completion be a source of barakah, growth, and beneficial knowledge.
+    </p>
+    <p className="mt-2 text-[0.66rem] leading-tight" style={{ color: CERTIFICATE_LAYOUT.inkSoft }}>
+      Certificate ID: {certificateId}
+    </p>
+  </div>
+);
+
+export default function CertificateCanvas({ cert, signatureImage }) {
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(cert.qrCodeDataUrl || '');
+
+  const verificationUrl = useMemo(
+    () => cert.verificationUrl || buildCertificateVerificationUrl(cert.id),
+    [cert.id, cert.verificationUrl],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    if (cert.qrCodeDataUrl) {
+      setQrCodeDataUrl(cert.qrCodeDataUrl);
+      return () => {
+        active = false;
+      };
+    }
+
+    if (!cert.id) {
+      setQrCodeDataUrl('');
+      return () => {
+        active = false;
+      };
+    }
+
+    createCertificateQrDataUrl(cert.id, verificationUrl)
+      .then((result) => {
+        if (active) {
+          setQrCodeDataUrl(result.qrCodeDataUrl || '');
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setQrCodeDataUrl('');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [cert.id, cert.qrCodeDataUrl, verificationUrl]);
+
+  const signatureSrc = signatureImage || cert.signatureImage || bundledSignature;
+  const formattedDate = formatCertificateDate(cert.completionDate || cert.issuedAt);
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-[28px] shadow-[0_24px_64px_rgba(24,15,4,0.22)]"
+      style={{
+        width: CERTIFICATE_LAYOUT.width,
+        minWidth: CERTIFICATE_LAYOUT.width,
+        maxWidth: CERTIFICATE_LAYOUT.width,
+        height: CERTIFICATE_LAYOUT.height,
+        background: `
+          radial-gradient(circle at 18% 16%, rgba(255,255,255,0.55), transparent 18%),
+          radial-gradient(circle at 82% 18%, rgba(255,255,255,0.45), transparent 18%),
+          linear-gradient(180deg, rgba(255,255,255,0.38), transparent 16%, transparent 84%, rgba(191,151,65,0.09)),
+          linear-gradient(135deg, ${CERTIFICATE_LAYOUT.parchment} 0%, ${CERTIFICATE_LAYOUT.parchmentWarm} 56%, #e5d0a4 100%)
+        `,
+      }}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 50% 36%, rgba(174, 142, 78, 0.085) 0%, transparent 26%),
+            linear-gradient(45deg, rgba(201,162,78,0.03) 25%, transparent 25%, transparent 50%, rgba(201,162,78,0.03) 50%, rgba(201,162,78,0.03) 75%, transparent 75%, transparent),
+            linear-gradient(-45deg, rgba(17,69,49,0.025) 25%, transparent 25%, transparent 50%, rgba(17,69,49,0.025) 50%, rgba(17,69,49,0.025) 75%, transparent 75%, transparent)
+          `,
+          backgroundSize: 'auto, 64px 64px, 64px 64px',
+          opacity: 0.72,
+        }}
+      />
+
+      <div
+        className="absolute inset-[12px] rounded-[22px]"
+        style={{ border: `1px solid ${CERTIFICATE_LAYOUT.frameGold}` }}
+      />
+      <div
+        className="absolute inset-[24px] rounded-[16px]"
+        style={{ border: `1px solid ${CERTIFICATE_LAYOUT.frameGoldSoft}` }}
+      />
+
+      <CornerOrnament position="topLeft" />
+      <CornerOrnament position="topRight" />
+      <CornerOrnament position="bottomLeft" />
+      <CornerOrnament position="bottomRight" />
+
+      <div
+        className="absolute top-0 left-0 right-0 h-10"
+        style={{
+          background: `linear-gradient(90deg, transparent, rgba(201,162,78,0.28), transparent)`,
+          opacity: 0.8,
+        }}
+      />
+
+      <div className="relative z-10 grid h-full grid-rows-[auto_auto_auto_auto_auto_1fr_auto_auto] gap-y-5 px-10 pb-8 pt-10">
+        <div className="text-center">
+          <p className="font-amiri text-[1.28rem]" style={{ color: CERTIFICATE_LAYOUT.emerald }}>
+            بِسْمِ اللَّهِ الرَّحْمٰنِ الرَّحِيمِ
+          </p>
+          <div className="mt-3 flex items-center justify-center">
+            <img src={academyLogo} alt="Ali Nawaz Academy logo" className="h-20 w-20 object-contain" />
+          </div>
+          <p className="mt-2 font-cinzel text-[0.66rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.24em' }}>
+            Ali Nawaz Academy
+          </p>
+          <p className="font-amiri text-[1.02rem]" style={{ color: CERTIFICATE_LAYOUT.emeraldDeep }}>
+            أكاديمية علي نواز
+          </p>
+        </div>
+
+        <div className="text-center">
+          <p className="font-amiri text-[1.7rem]" style={{ color: CERTIFICATE_LAYOUT.emerald }}>
+            شهادة إتمام
+          </p>
+          <h1
+            className="mt-1 font-cormorant text-[2.75rem] font-semibold"
+            style={{ color: CERTIFICATE_LAYOUT.ink, letterSpacing: '0.01em' }}
+          >
+            Certificate of Completion
+          </h1>
+          <DividerMotif />
+          <p
+            className="mx-auto mt-3 max-w-[37rem] text-center text-[0.88rem] leading-6"
+            style={{ color: CERTIFICATE_LAYOUT.inkSoft }}
+          >
+            With gratitude and recognition for sincere effort in seeking beneficial knowledge, this certificate
+            is presented in honor of successful completion.
+          </p>
+        </div>
+
+        <div className="text-center">
+          <p className="font-cinzel text-[0.66rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.frameGold, letterSpacing: '0.28em' }}>
+            Presented To
+          </p>
+          <div className="mx-auto mt-2 max-w-[34rem] border-b pb-2.5" style={{ borderColor: CERTIFICATE_LAYOUT.line }}>
+            <p
+              className="font-cormorant font-semibold leading-tight"
+              style={{ color: CERTIFICATE_LAYOUT.emerald, fontSize: getStudentNameSize(cert.studentName || '') }}
+            >
+              {cert.studentName}
+            </p>
+          </div>
+        </div>
+
+        <div className="text-center">
+          <p className="font-cinzel text-[0.66rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.frameGold, letterSpacing: '0.26em' }}>
+            For Successfully Completing
+          </p>
+          <div className="mx-auto mt-2 max-w-[36rem] border-b pb-2.5" style={{ borderColor: CERTIFICATE_LAYOUT.line }}>
+            <p
+              className="font-cormorant font-semibold leading-tight"
+              style={{ color: CERTIFICATE_LAYOUT.ink, fontSize: getCourseNameSize(cert.courseName || '') }}
+            >
+              {cert.courseName}
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="mx-auto w-full max-w-[31rem] rounded-[16px] px-7 py-4 text-center"
+          style={{
+            background: 'rgba(255, 250, 239, 0.62)',
+            border: `1px solid ${CERTIFICATE_LAYOUT.line}`,
+          }}
+        >
+          <p className="font-amiri text-[1.2rem]" style={{ color: CERTIFICATE_LAYOUT.emerald }}>
+            رَبِّ زِدْنِي عِلْمًا
+          </p>
+          <p className="mt-1 font-cinzel text-[0.54rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.frameGold, letterSpacing: '0.18em' }}>
+            “My Lord, increase me in knowledge.”
+          </p>
+        </div>
+
+        <div />
+
+        <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-4">
+          <MetaCard label="Completion Date" value={formattedDate} />
+          <SealBadge />
+          <MetaCard label="Certificate ID" value={cert.id} />
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-4">
+          <SignatureBlock signatureSrc={signatureSrc} />
+          <QrBlock qrCodeDataUrl={qrCodeDataUrl} />
+          <IssuerNote certificateId={cert.id} />
+        </div>
+      </div>
+    </div>
+  );
 }

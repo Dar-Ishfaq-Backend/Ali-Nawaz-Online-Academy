@@ -7,6 +7,8 @@ import { useApp } from '../context/AppContext';
 import bundledSignature from '../assets/signature.png';
 import CertificateGenerator from '../components/CertificateGenerator';
 import ProgressBar from '../components/ProgressBar';
+import { buildCertificateVerificationUrl } from '../utils/certificateRecords';
+import { CERTIFICATE_LAYOUT } from '../utils/certificateTemplates';
 
 const ROLE_RANK = {
   Student: 0,
@@ -86,8 +88,6 @@ export default function AdminPanel() {
     updateUser,
     toggleUserBlocked,
     platformSettings,
-    certificateTemplates,
-    certificateThemes,
     isSupabaseEnabled,
     savePlatformSettings,
     refreshUsers,
@@ -101,8 +101,6 @@ export default function AdminPanel() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [userForm, setUserForm] = useState(EMPTY_USER_FORM);
   const [feedback, setFeedback] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(platformSettings.certificateTemplate);
-  const [selectedTheme, setSelectedTheme] = useState(platformSettings.certificateTheme);
   const [selectedSignature, setSelectedSignature] = useState(platformSettings.certificateSignature || '');
   const signatureInputRef = useRef(null);
   const tab = useMemo(() => {
@@ -135,18 +133,6 @@ export default function AdminPanel() {
   const editableRoles = useMemo(() => (
     editingUserId === currentUser?.id ? [currentUser.role] : assignableRoles
   ), [assignableRoles, currentUser, editingUserId]);
-  const selectedTemplateMeta = useMemo(() => (
-    certificateTemplates.find((template) => template.id === selectedTemplate) || certificateTemplates[0]
-  ), [certificateTemplates, selectedTemplate]);
-  const savedTemplateMeta = useMemo(() => (
-    certificateTemplates.find((template) => template.id === platformSettings.certificateTemplate) || certificateTemplates[0]
-  ), [certificateTemplates, platformSettings.certificateTemplate]);
-  const selectedThemeMeta = useMemo(() => (
-    certificateThemes.find((theme) => theme.id === selectedTheme) || certificateThemes[0]
-  ), [certificateThemes, selectedTheme]);
-  const savedThemeMeta = useMemo(() => (
-    certificateThemes.find((theme) => theme.id === platformSettings.certificateTheme) || certificateThemes[0]
-  ), [certificateThemes, platformSettings.certificateTheme]);
   const analytics = useMemo(() => ({
     totalStudents: users.filter((user) => user.role === 'Student').length,
     activeToday: users.length ? Math.max(1, Math.round(users.length * 0.28)) : 0,
@@ -155,15 +141,14 @@ export default function AdminPanel() {
   }), [courses.length, users]);
   const previewCertificate = useMemo(() => ({
     id: 'ANA-PREVIEW-001',
+    courseId: 'preview-course',
     studentName: 'Amina Yusuf',
     courseName: 'Advanced Tajweed Foundations',
     issuedAt: '2026-03-29T00:00:00.000Z',
+    completionDate: '2026-03-29',
+    verificationUrl: buildCertificateVerificationUrl('ANA-PREVIEW-001'),
   }), []);
   const savedSignature = platformSettings.certificateSignature || '';
-  const templateChanged = selectedTemplate !== platformSettings.certificateTemplate;
-  const themeChanged = selectedTheme !== platformSettings.certificateTheme;
-  const signatureChanged = selectedSignature !== savedSignature;
-  const settingsChanged = templateChanged || themeChanged || signatureChanged;
 
   const fetchPayments = async () => {
     if (!isSupabaseEnabled) {
@@ -268,14 +253,6 @@ export default function AdminPanel() {
     setFeedback({ type: 'success', text: 'Payment marked as rejected.' });
     fetchPayments();
   };
-
-  useEffect(() => {
-    setSelectedTemplate(platformSettings.certificateTemplate);
-  }, [platformSettings.certificateTemplate]);
-
-  useEffect(() => {
-    setSelectedTheme(platformSettings.certificateTheme);
-  }, [platformSettings.certificateTheme]);
 
   useEffect(() => {
     setSelectedSignature(platformSettings.certificateSignature || '');
@@ -383,40 +360,6 @@ export default function AdminPanel() {
       type: result.ok ? 'success' : 'error',
       text: result.ok
         ? `${user.name} has been ${user.blocked ? 'unblocked' : 'blocked'}.`
-        : result.message,
-    });
-  };
-
-  const handleSettingsSave = () => {
-    const result = savePlatformSettings({
-      certificateTemplate: selectedTemplate,
-      certificateTheme: selectedTheme,
-      certificateSignature: selectedSignature,
-    });
-
-    let successText = 'Certificate settings are already live.';
-    if (templateChanged && themeChanged && signatureChanged) {
-      successText = 'Certificate template, theme, and signature are now live.';
-    } else if (templateChanged && themeChanged) {
-      successText = `${selectedTemplateMeta.name} with ${selectedThemeMeta.name} is now live.`;
-    } else if (themeChanged && signatureChanged) {
-      successText = `${selectedThemeMeta.name} and the live signature are now active.`;
-    } else if (templateChanged && signatureChanged) {
-      successText = `${selectedTemplateMeta.name} and the live signature are now active.`;
-    } else if (templateChanged) {
-      successText = `${selectedTemplateMeta.name} is now the active certificate template.`;
-    } else if (themeChanged) {
-      successText = `${selectedThemeMeta.name} is now the active certificate theme.`;
-    } else if (signatureChanged) {
-      successText = selectedSignature
-        ? 'The certificate signature is now live.'
-        : 'The certificate signature has been removed.';
-    }
-
-    setFeedback({
-      type: result.ok ? 'success' : 'error',
-      text: result.ok
-        ? successText
         : result.message,
     });
   };
@@ -887,7 +830,7 @@ export default function AdminPanel() {
           <div>
             <h2 className="font-cinzel font-bold text-gold-400 text-lg">Certificate Designer</h2>
             <p className="text-sm text-cream/40 font-crimson mt-1">
-              Admin and Super Admin accounts can choose the live certificate template and preview it directly inside the website.
+              Admin and Super Admin accounts can review the official live certificate and update the instructor signature used on issued certificates.
             </p>
           </div>
 
@@ -895,85 +838,17 @@ export default function AdminPanel() {
             <div className="space-y-4">
               <div className="glass-card p-4 space-y-4">
                 <div>
-                  <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">ACTIVE TEMPLATE</p>
-                  <p className="font-cinzel font-bold text-gold-400">{savedTemplateMeta.name}</p>
+                  <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">LIVE CERTIFICATE</p>
+                  <p className="font-cinzel font-bold text-gold-400">{CERTIFICATE_LAYOUT.name}</p>
                   <p className="text-xs text-cream/35 font-crimson mt-1">
-                    Save a new selection to update the live certificate design across this website.
+                    This fixed portrait certificate is now the only live certificate used across the website.
                   </p>
                   <p className="text-xs text-cream/35 font-crimson mt-2">
-                    Active theme: {savedThemeMeta.name}
+                    Layout size: {CERTIFICATE_LAYOUT.width} × {CERTIFICATE_LAYOUT.height}px portrait
                   </p>
                   <p className="text-xs text-cream/35 font-crimson mt-1">
                     Live signature: {savedSignature ? 'Custom PNG uploaded' : 'Bundled signature.png'}
                   </p>
-                </div>
-
-                <div className="space-y-3">
-                  {certificateTemplates.map((template) => {
-                    const isSelected = template.id === selectedTemplate;
-
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => setSelectedTemplate(template.id)}
-                        className={`w-full rounded-2xl p-3 text-left transition-all ${
-                          isSelected ? 'bg-emerald-900/10' : 'hover:bg-emerald-900/5'
-                        }`}
-                        style={{
-                          border: isSelected ? '1px solid rgba(245,158,11,0.45)' : '1px solid rgba(255,255,255,0.06)',
-                        }}
-                      >
-                        <div className="h-16 rounded-xl mb-3" style={{ background: template.previewBackground }} />
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className={`font-cinzel font-bold text-sm ${isSelected ? 'text-gold-400' : 'text-cream/75'}`}>
-                              {template.name}
-                            </p>
-                            <p className="text-[11px] font-cinzel text-emerald-300/80 mt-1 uppercase tracking-[0.18em]">{template.style}</p>
-                            <p className="text-xs font-crimson text-cream/35 mt-1">{template.description}</p>
-                          </div>
-                          {isSelected && <span className="badge badge-gold text-[10px]">Previewing</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div
-                  className="rounded-2xl p-3 space-y-3"
-                  style={{ border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(6,78,59,0.08)' }}
-                >
-                  <div>
-                    <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">COLOR THEMES</p>
-                    <p className="text-xs text-cream/35 font-crimson">
-                      Apply a shared palette across every certificate template.
-                    </p>
-                  </div>
-
-                  <div className="grid sm:grid-cols-3 gap-3">
-                    {certificateThemes.map((theme) => {
-                      const isSelected = theme.id === selectedTheme;
-
-                      return (
-                        <button
-                          key={theme.id}
-                          type="button"
-                          onClick={() => setSelectedTheme(theme.id)}
-                          className={`rounded-2xl p-3 text-left transition-all ${isSelected ? 'bg-emerald-900/10' : 'hover:bg-emerald-900/5'}`}
-                          style={{
-                            border: isSelected ? '1px solid rgba(245,158,11,0.45)' : '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div className="h-14 rounded-xl mb-3" style={{ background: theme.swatch }} />
-                          <p className={`font-cinzel font-bold text-sm ${isSelected ? 'text-gold-400' : 'text-cream/75'}`}>
-                            {theme.name}
-                          </p>
-                          <p className="text-xs font-crimson text-cream/35 mt-1">{theme.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 <div
@@ -1038,27 +913,16 @@ export default function AdminPanel() {
                     Transparent PNGs look best. JPG and WebP uploads are converted to PNG automatically. If you do not upload one, the bundled `signature.png` is used by default.
                   </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleSettingsSave}
-                  disabled={!settingsChanged}
-                  className="btn-gold w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {settingsChanged ? 'Save Certificate Settings' : 'Settings Already Live'}
-                </button>
               </div>
 
               <div className="glass-card p-4">
-                <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">SELECTED PREVIEW</p>
-                <p className="font-cinzel font-bold text-gold-400">{selectedTemplateMeta.name}</p>
+                <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">PREVIEW NOTES</p>
+                <p className="font-cinzel font-bold text-gold-400">{CERTIFICATE_LAYOUT.name}</p>
                 <p className="text-xs text-cream/35 font-crimson mt-1">
-                  {role === 'Super Admin'
-                    ? 'Super Admin can preview the full certificate here before publishing the change.'
-                    : 'Admin can preview the full certificate here before saving the live template.'}
+                  Signature uploads and removals go live immediately. The preview on the right always shows the current official certificate layout.
                 </p>
                 <p className="text-xs text-cream/35 font-crimson mt-2">
-                  Preview theme: {selectedThemeMeta.name}
+                  QR verification is generated for issued certificates and linked to the public verification route.
                 </p>
                 <p className="text-xs text-cream/35 font-crimson mt-1">
                   Preview signature: {selectedSignature ? 'Custom override ready' : 'Using bundled signature.png'}
@@ -1070,16 +934,14 @@ export default function AdminPanel() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
                 <div>
                   <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">LIVE WEBSITE PREVIEW</p>
-                  <h3 className="font-cinzel font-bold text-gold-400">{selectedTemplateMeta.name}</h3>
-                  <p className="text-xs text-cream/35 font-crimson mt-1">{selectedThemeMeta.name}</p>
+                  <h3 className="font-cinzel font-bold text-gold-400">{CERTIFICATE_LAYOUT.name}</h3>
+                  <p className="text-xs text-cream/35 font-crimson mt-1">Portrait A4 certificate preview</p>
                 </div>
                 <span className="badge badge-emerald text-[10px] w-fit">Certificate Preview</span>
               </div>
 
               <CertificateGenerator
                 cert={previewCertificate}
-                template={selectedTemplate}
-                theme={selectedTheme}
                 signatureImage={selectedSignature}
                 showDownload={false}
               />

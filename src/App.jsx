@@ -16,6 +16,7 @@ import AalimProgram from './pages/AalimProgram';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
+import VerifyCertificate from './pages/VerifyCertificate';
 import './index.css';
 
 function PublicOnlyRoute() {
@@ -81,6 +82,8 @@ function ProtectedNotFound() {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/verify-certificate/:certificateId" element={<VerifyCertificate />} />
+
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

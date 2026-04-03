@@ -1,10 +1,45 @@
-import { useMemo, useState } from 'react';
-import { Award, AlertCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Award, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
-import { CERTIFICATE_WATCH_THRESHOLD, canGenerateCertificate, getCourseWatchStats } from '../utils/storage';
 import CertificateGenerator from '../components/CertificateGenerator';
-import { getCertificateTemplateMeta, getCertificateThemeMeta } from '../utils/certificateTemplates';
+import { useApp } from '../context/AppContext';
+import { CERTIFICATE_LAYOUT } from '../utils/certificateTemplates';
+import { CERTIFICATE_WATCH_THRESHOLD, canGenerateCertificate, getCourseWatchStats } from '../utils/storage';
+
+const CertificateCardPreview = ({ studentName, courseName }) => (
+  <div
+    className="mx-auto flex w-full max-w-[11rem] flex-col justify-between rounded-[20px] px-4 py-4"
+    style={{
+      aspectRatio: CERTIFICATE_LAYOUT.aspectRatio,
+      background: `
+        linear-gradient(180deg, rgba(255,255,255,0.28), transparent 26%),
+        linear-gradient(135deg, #f8f1e4 0%, #efe1c4 60%, #e0c794 100%)
+      `,
+      border: `1px solid ${CERTIFICATE_LAYOUT.frameGold}`,
+      boxShadow: '0 16px 32px rgba(28, 20, 10, 0.18)',
+    }}
+  >
+    <div className="text-center">
+      <p className="font-amiri text-sm" style={{ color: CERTIFICATE_LAYOUT.emerald }}>شهادة إتمام</p>
+      <p className="font-cormorant text-lg font-semibold leading-none mt-1" style={{ color: CERTIFICATE_LAYOUT.ink }}>
+        Certificate
+      </p>
+    </div>
+    <div className="text-center">
+      <p className="font-cormorant text-xl font-semibold leading-tight" style={{ color: CERTIFICATE_LAYOUT.emerald }}>
+        {studentName}
+      </p>
+      <p className="mt-2 text-xs leading-4" style={{ color: CERTIFICATE_LAYOUT.inkSoft }}>
+        {courseName}
+      </p>
+    </div>
+    <div className="text-center">
+      <p className="font-cinzel text-[0.5rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.frameGold, letterSpacing: '0.16em' }}>
+        Official Certificate
+      </p>
+    </div>
+  </div>
+);
 
 export default function Certificates() {
   const {
@@ -16,31 +51,69 @@ export default function Certificates() {
     forceUnlockCert,
     resetCourseProgress,
     courses,
-    platformSettings,
   } = useApp();
   const [viewing, setViewing] = useState(null);
   const [claimMessage, setClaimMessage] = useState('');
-  const activeTemplate = platformSettings.certificateTemplate;
-  const activeTheme = platformSettings.certificateTheme;
-  const activeTemplateMeta = useMemo(() => getCertificateTemplateMeta(activeTemplate), [activeTemplate]);
-  const activeThemeMeta = useMemo(() => getCertificateThemeMeta(activeTheme), [activeTheme]);
-  const bypassWatchRequirement = role === 'Admin' || role === 'Super Admin';
+  const [workingCourseId, setWorkingCourseId] = useState('');
   const isSuperAdmin = role === 'Super Admin';
+  const bypassWatchRequirement = role === 'Admin' || role === 'Super Admin';
 
-  const completedNoCert = courses
-    .filter((course) => enrollments[course.id] && canGenerateCertificate(course) && !certificates[course.id]);
-  const watchLockedCourses = courses
-    .filter((course) => enrollments[course.id] && !canGenerateCertificate(course) && !certificates[course.id]);
-  const superAdminTestingCourses = useMemo(() => courses.map((course) => ({
-    ...course,
-    certificate: certificates[course.id] || null,
-    watchStats: getCourseWatchStats(course),
-  })), [certificates, courses]);
+  const completedNoCert = useMemo(() => (
+    courses.filter((course) => enrollments[course.id] && canGenerateCertificate(course) && !certificates[course.id])
+  ), [certificates, courses, enrollments]);
 
-  const certList = Object.values(certificates);
+  const watchLockedCourses = useMemo(() => (
+    courses.filter((course) => enrollments[course.id] && !canGenerateCertificate(course) && !certificates[course.id])
+  ), [certificates, courses, enrollments]);
 
-  const handleForceUnlock = (course) => {
-    const result = forceUnlockCert(course.id, course.title);
+  const superAdminTestingCourses = useMemo(() => (
+    courses.map((course) => ({
+      ...course,
+      certificate: certificates[course.id] || null,
+      watchStats: getCourseWatchStats(course),
+    }))
+  ), [certificates, courses]);
+
+  const certList = useMemo(() => Object.values(certificates), [certificates]);
+
+  useEffect(() => {
+    const legacyCertificates = certList.filter((certificate) => !certificate.verificationUrl || !certificate.qrCodeDataUrl);
+    if (!legacyCertificates.length) return undefined;
+
+    let active = true;
+
+    const syncLegacyCertificates = async () => {
+      for (const certificate of legacyCertificates) {
+        if (!active) return;
+        await issueCert(certificate.courseId, certificate.courseName);
+      }
+    };
+
+    void syncLegacyCertificates();
+
+    return () => {
+      active = false;
+    };
+  }, [certList, issueCert]);
+
+  const handleIssueCertificate = async (course) => {
+    setWorkingCourseId(course.id);
+    const result = await issueCert(course.id, course.title);
+    setWorkingCourseId('');
+
+    if (!result.ok) {
+      setClaimMessage(result.message);
+      return;
+    }
+
+    setClaimMessage('');
+    setViewing(result.certificate);
+  };
+
+  const handleForceUnlock = async (course) => {
+    setWorkingCourseId(course.id);
+    const result = await forceUnlockCert(course.id, course.title);
+    setWorkingCourseId('');
 
     if (!result.ok) {
       setClaimMessage(result.message);
@@ -51,8 +124,10 @@ export default function Certificates() {
     setViewing(result.certificate);
   };
 
-  const handleResetCourseProgress = (courseId) => {
-    const result = resetCourseProgress(courseId);
+  const handleResetCourse = async (courseId) => {
+    setWorkingCourseId(courseId);
+    const result = await resetCourseProgress(courseId);
+    setWorkingCourseId('');
 
     if (!result.ok) {
       setClaimMessage(result.message);
@@ -70,24 +145,46 @@ export default function Certificates() {
     const viewingCourse = courses.find((course) => course.id === viewing.courseId) || null;
 
     return (
-      <div className="animate-fade-in">
-        <button onClick={() => setViewing(null)}
-          className="flex items-center gap-2 text-cream/40 hover:text-cream/80 font-crimson text-sm mb-6">
+      <div className="animate-fade-in space-y-5">
+        <button
+          onClick={() => setViewing(null)}
+          className="flex items-center gap-2 text-cream/40 hover:text-cream/80 font-crimson text-sm"
+        >
           ← Back to Certificates
         </button>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-          <h1 className="font-cinzel font-black text-2xl text-gold-400">Your Certificate</h1>
-          {isSuperAdmin && viewingCourse && (
-            <button
-              type="button"
-              onClick={() => handleResetCourseProgress(viewingCourse.id)}
-              className="btn-emerald text-xs px-4 py-2 w-full sm:w-auto"
-            >
-              Reset This Course To Zero
-            </button>
-          )}
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="font-cinzel font-black text-2xl text-gold-400">Official Certificate</h1>
+            <p className="text-cream/45 font-crimson mt-1">Ali Nawaz Academy portrait certificate with QR verification.</p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {viewing.verificationUrl && (
+              <a
+                href={viewing.verificationUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-emerald text-xs px-4 py-2 inline-flex items-center justify-center gap-2"
+              >
+                <ExternalLink size={14} />
+                Open Verification Page
+              </a>
+            )}
+            {isSuperAdmin && viewingCourse && (
+              <button
+                type="button"
+                onClick={() => handleResetCourse(viewingCourse.id)}
+                disabled={workingCourseId === viewingCourse.id}
+                className="btn-gold text-xs px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {workingCourseId === viewingCourse.id ? 'Resetting...' : 'Reset This Course To Zero'}
+              </button>
+            )}
+          </div>
         </div>
-        <CertificateGenerator cert={viewing} template={activeTemplate} theme={activeTheme} />
+
+        <CertificateGenerator cert={viewing} />
       </div>
     );
   }
@@ -96,9 +193,7 @@ export default function Certificates() {
     <div className="animate-fade-in space-y-8">
       <div>
         <h1 className="font-cinzel font-black text-2xl md:text-3xl text-gold-400 mb-1">Certificates</h1>
-        <p className="text-cream/50 font-crimson">Your earned credentials</p>
-        <p className="text-xs text-cream/30 font-crimson mt-2">Current certificate template: {activeTemplateMeta.name}</p>
-        <p className="text-xs text-cream/30 font-crimson mt-1">Current certificate theme: {activeThemeMeta.name}</p>
+        <p className="text-cream/50 font-crimson">Official Ali Nawaz Academy completion certificates.</p>
         {claimMessage && (
           <p className="text-xs text-gold-300 font-crimson mt-3">{claimMessage}</p>
         )}
@@ -107,11 +202,11 @@ export default function Certificates() {
       {isSuperAdmin && (
         <div className="glass-card p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Award size={18} className="text-gold-400" />
+            <ShieldCheck size={18} className="text-gold-400" />
             <h2 className="font-cinzel font-bold text-gold-400">Super Admin Certificate Testing</h2>
           </div>
           <p className="text-xs text-cream/40 font-crimson mb-4">
-            Use these tools to unlock any course certificate for the current Super Admin account, check the design, then reset that course back to zero progress.
+            Unlock any course certificate for this Super Admin account, inspect the design, then reset the same course back to zero progress when you are done testing.
           </p>
           <div className="space-y-3">
             {superAdminTestingCourses.map((course) => (
@@ -120,14 +215,14 @@ export default function Certificates() {
                 className="flex flex-col gap-3 rounded-xl px-4 py-4"
                 style={{ background: 'rgba(6,78,59,0.12)', border: '1px solid rgba(245,158,11,0.16)' }}
               >
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <p className="font-cinzel font-bold text-gold-300 text-sm">{course.title}</p>
                     <p className="text-cream/40 text-xs font-crimson mt-1">
                       Current watch progress for {currentUser?.name || 'this account'}: {course.watchStats.coursePercent}%
                     </p>
                     <p className="text-cream/25 text-[11px] font-crimson mt-1">
-                      {course.certificate ? `Certificate ready: ${course.certificate.id}` : 'No certificate generated yet for this course.'}
+                      {course.certificate ? `Certificate ready: ${course.certificate.id}` : 'No certificate issued for this course yet.'}
                     </p>
                   </div>
 
@@ -144,17 +239,19 @@ export default function Certificates() {
                       <button
                         type="button"
                         onClick={() => handleForceUnlock(course)}
-                        className="btn-gold text-xs px-4 py-2"
+                        disabled={workingCourseId === course.id}
+                        className="btn-gold text-xs px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Unlock Certificate
+                        {workingCourseId === course.id ? 'Unlocking...' : 'Unlock Certificate'}
                       </button>
                     )}
                     <button
                       type="button"
-                      onClick={() => handleResetCourseProgress(course.id)}
-                      className="btn-emerald text-xs px-4 py-2"
+                      onClick={() => handleResetCourse(course.id)}
+                      disabled={workingCourseId === course.id}
+                      className="btn-emerald text-xs px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Reset Progress
+                      {workingCourseId === course.id ? 'Resetting...' : 'Reset Progress'}
                     </button>
                   </div>
                 </div>
@@ -164,39 +261,37 @@ export default function Certificates() {
         </div>
       )}
 
-      {/* Claimable certificates */}
       {completedNoCert.length > 0 && (
         <div className="glass-card p-5 border-gold-500/30">
           <div className="flex items-center gap-2 mb-4">
             <AlertCircle size={18} className="text-gold-400" />
-            <h2 className="font-cinzel font-bold text-gold-400">Ready to Claim!</h2>
+            <h2 className="font-cinzel font-bold text-gold-400">Ready to Claim</h2>
           </div>
           <div className="space-y-3">
-            {completedNoCert.map(course => (
-              <div key={course.id} className="flex items-center gap-4 px-4 py-3 rounded-xl"
-                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                <Award size={20} className="text-gold-400 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="font-cinzel font-bold text-gold-300 text-sm">{course.title}</p>
-                  <p className="text-cream/40 text-xs font-crimson">
-                    {bypassWatchRequirement
-                      ? 'Admin watch-rule override is active'
-                      : `${getCourseWatchStats(course).coursePercent}% of the full course watched`}
-                  </p>
+            {completedNoCert.map((course) => (
+              <div
+                key={course.id}
+                className="flex flex-col gap-3 rounded-xl px-4 py-4 md:flex-row md:items-center md:justify-between"
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}
+              >
+                <div className="flex items-start gap-3">
+                  <Award size={20} className="text-gold-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-cinzel font-bold text-gold-300 text-sm">{course.title}</p>
+                    <p className="text-cream/40 text-xs font-crimson mt-1">
+                      {bypassWatchRequirement
+                        ? 'Admin watch-rule override is active for your account.'
+                        : `${getCourseWatchStats(course).coursePercent}% of the full course watched.`}
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => {
-                  const result = issueCert(course.id, course.title);
 
-                  if (!result.ok) {
-                    setClaimMessage(result.message);
-                    return;
-                  }
-
-                  setClaimMessage('');
-                  setViewing(result.certificate);
-                }}
-                  className="btn-gold text-xs px-4 py-2">
-                  Claim Certificate
+                <button
+                  onClick={() => handleIssueCertificate(course)}
+                  disabled={workingCourseId === course.id}
+                  className="btn-gold text-xs px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {workingCourseId === course.id ? 'Issuing...' : 'Claim Certificate'}
                 </button>
               </div>
             ))}
@@ -215,16 +310,22 @@ export default function Certificates() {
               const watchStats = getCourseWatchStats(course);
 
               return (
-                <div key={course.id} className="flex items-center gap-4 px-4 py-3 rounded-xl"
-                  style={{ background: 'rgba(6,78,59,0.14)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                  <Award size={20} className="text-emerald-400 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="font-cinzel font-bold text-emerald-300 text-sm">{course.title}</p>
-                    <p className="text-cream/40 text-xs font-crimson">
-                      {watchStats.coursePercent}% watched so far. Reach {CERTIFICATE_WATCH_THRESHOLD}% overall to claim the certificate.
-                    </p>
+                <div
+                  key={course.id}
+                  className="flex flex-col gap-3 rounded-xl px-4 py-4 md:flex-row md:items-center md:justify-between"
+                  style={{ background: 'rgba(6,78,59,0.14)', border: '1px solid rgba(16,185,129,0.2)' }}
+                >
+                  <div className="flex items-start gap-3">
+                    <Award size={20} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-cinzel font-bold text-emerald-300 text-sm">{course.title}</p>
+                      <p className="text-cream/40 text-xs font-crimson mt-1">
+                        {watchStats.coursePercent}% watched so far. Reach {CERTIFICATE_WATCH_THRESHOLD}% overall to claim the certificate.
+                      </p>
+                    </div>
                   </div>
-                  <Link to={`/course/${course.id}`} className="btn-emerald text-xs px-4 py-2">
+
+                  <Link to={`/course/${course.id}`} className="btn-emerald text-xs px-4 py-2 inline-flex items-center justify-center">
                     Continue Watching
                   </Link>
                 </div>
@@ -234,7 +335,6 @@ export default function Certificates() {
         </div>
       )}
 
-      {/* Existing certificates */}
       {certList.length === 0 && completedNoCert.length === 0 && watchLockedCourses.length === 0 ? (
         <div className="glass-card p-16 text-center">
           <Award size={60} className="text-gold-500/15 mx-auto mb-4" />
@@ -247,33 +347,24 @@ export default function Certificates() {
           <Link to="/courses" className="btn-gold inline-block">Browse Courses</Link>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {certList.map(cert => (
-            <div key={cert.id} className="glass-card p-5 flex flex-col items-center text-center gap-4 hover:scale-[1.02] transition-transform cursor-pointer"
-              onClick={() => setViewing(cert)}>
-              {/* Mini certificate preview */}
-              <div className="w-full h-32 rounded-xl flex flex-col items-center justify-center certificate-border"
-                style={{
-                  background: activeThemeMeta.surfaceBackground,
-                  '--certificate-border-color': activeThemeMeta.border,
-                  '--certificate-border-inner': activeThemeMeta.borderInnerShadow,
-                  '--certificate-border-outer': activeThemeMeta.borderOuterShadow,
-                }}>
-                <p className="font-amiri text-lg" style={{ color: activeThemeMeta.subtitle }}>بِسْمِ اللَّهِ</p>
-                <Award size={28} className="my-1" style={{ color: activeThemeMeta.academy }} />
-                <p className="font-cinzel text-[10px] tracking-widest" style={{ color: activeThemeMeta.academy }}>ALI NAWAZ ACADEMY</p>
-                <p className="font-cinzel text-[9px] tracking-[0.28em] mt-1" style={{ color: activeThemeMeta.body }}>{activeTemplateMeta.name.toUpperCase()}</p>
-              </div>
-              <div>
-                <p className="font-cinzel font-bold text-gold-400 text-sm mb-0.5">{cert.courseName}</p>
-                <p className="text-cream/50 font-crimson text-xs">{cert.studentName}</p>
-                <p className="text-cream/30 font-crimson text-xs mt-1">
-                  {new Date(cert.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          {certList.map((certificate) => (
+            <div
+              key={certificate.id}
+              className="glass-card p-5 flex flex-col gap-4 hover:scale-[1.01] transition-transform cursor-pointer"
+              onClick={() => setViewing(certificate)}
+            >
+              <CertificateCardPreview studentName={certificate.studentName} courseName={certificate.courseName} />
+
+              <div className="text-center">
+                <p className="font-cinzel font-bold text-gold-400 text-sm">{certificate.courseName}</p>
+                <p className="text-cream/50 font-crimson text-xs mt-1">{certificate.studentName}</p>
+                <p className="text-cream/30 font-crimson text-xs mt-2">
+                  {new Date(certificate.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
-                <p className="text-cream/20 font-crimson text-[10px] mt-1">{activeTemplateMeta.name}</p>
-                <p className="text-cream/20 font-crimson text-[10px] mt-1">{activeThemeMeta.name}</p>
-                <p className="text-cream/20 font-crimson text-[10px] mt-1">{cert.id}</p>
+                <p className="text-cream/20 font-crimson text-[10px] mt-1">{certificate.id}</p>
               </div>
+
               <button className="btn-gold text-xs px-5 py-2 w-full">View & Download</button>
             </div>
           ))}
