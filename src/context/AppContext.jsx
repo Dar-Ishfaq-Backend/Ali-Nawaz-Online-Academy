@@ -4,6 +4,7 @@ import {
   STAFF_ACCESS_RULES,
   getSupabaseUser,
   isSupabaseEnabled,
+  listSupabaseProfiles,
   registerWithSupabase,
   requestSupabasePasswordReset,
   signInWithSupabase,
@@ -26,6 +27,7 @@ import {
   getRole,
   getStreak,
   getStudentName,
+  getUserLearningStats,
   createManagedCourse,
   createManagedUser,
   editManagedCourse,
@@ -49,6 +51,12 @@ import {
 } from '../utils/storage';
 
 const AppContext = createContext(null);
+const ROLE_ORDER = {
+  Student: 0,
+  Teacher: 1,
+  Admin: 2,
+  'Super Admin': 3,
+};
 
 const getSnapshot = () => ({
   currentUser: getCurrentUser(),
@@ -67,36 +75,95 @@ const getSnapshot = () => ({
   platformSettings: getPlatformSettings(),
 });
 
+const sortUsers = (users = []) => [...users].sort((a, b) => {
+  const roleDelta = (ROLE_ORDER[b.role] || 0) - (ROLE_ORDER[a.role] || 0);
+  if (roleDelta !== 0) return roleDelta;
+  return (a.name || '').localeCompare(b.name || '');
+});
+
+const decorateUsersWithLocalStats = (users = []) => sortUsers(users.map((user) => ({
+  ...user,
+  ...getUserLearningStats(user.id),
+})));
+
 export function AppProvider({ children }) {
+  const supabaseEnabled = isSupabaseEnabled();
   const [state, setState] = useState(getSnapshot);
-  const [authReady, setAuthReady] = useState(!isSupabaseEnabled());
+  const [remoteUsers, setRemoteUsers] = useState([]);
+  const [authReady, setAuthReady] = useState(!supabaseEnabled);
   const [passwordRecoveryReady, setPasswordRecoveryReady] = useState(false);
 
   const refreshState = useCallback(() => {
     setState(getSnapshot());
   }, []);
 
+  const refreshSupabaseUsers = useCallback(async () => {
+    if (!supabaseEnabled) {
+      setRemoteUsers([]);
+      return { ok: true, users: [] };
+    }
+
+    const result = await listSupabaseProfiles();
+
+    if (result.ok) {
+      setRemoteUsers(decorateUsersWithLocalStats(result.users));
+    }
+
+    return result;
+  }, [supabaseEnabled]);
+
+  const syncSupabaseSessionUser = useCallback(async () => {
+    if (!supabaseEnabled) {
+      return { ok: false, message: 'Supabase is not configured.' };
+    }
+
+    const result = await getSupabaseUser();
+
+    if (!result.ok) {
+      const shouldClearLocalSession = (
+        result.message === 'No active Supabase session was found.'
+        || result.message?.includes('retired')
+      );
+
+      if (shouldClearLocalSession) {
+        storageLogoutUser();
+        setPasswordRecoveryReady(false);
+        setState(getSnapshot());
+      }
+
+      return result;
+    }
+
+    const mirroredUser = syncExternalUser(result.user);
+    setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
+    setPasswordRecoveryReady(result.recoveryType === 'recovery');
+    setState(getSnapshot());
+
+    return { ...result, user: mirroredUser };
+  }, [supabaseEnabled]);
+
   useEffect(() => {
     let active = true;
 
     const bootstrapSupabaseAuth = async () => {
-      if (!isSupabaseEnabled()) {
+      if (!supabaseEnabled) {
+        setRemoteUsers([]);
         setAuthReady(true);
         return;
       }
 
-      const result = await getSupabaseUser();
+      const result = await syncSupabaseSessionUser();
 
-      if (active && result.ok) {
-        const mirroredUser = syncExternalUser(result.user);
-        setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
-        setPasswordRecoveryReady(result.recoveryType === 'recovery');
+      if (!active) return;
+
+      if (result.ok) {
+        await refreshSupabaseUsers();
+      } else if (result.message === 'No active Supabase session was found.') {
+        setRemoteUsers([]);
       }
 
-      if (active) {
-        refreshState();
-        setAuthReady(true);
-      }
+      refreshState();
+      setAuthReady(true);
     };
 
     bootstrapSupabaseAuth();
@@ -104,29 +171,56 @@ export function AppProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [refreshState]);
+  }, [refreshState, refreshSupabaseUsers, supabaseEnabled, syncSupabaseSessionUser]);
+
+  useEffect(() => {
+    if (!supabaseEnabled || !authReady || !state.currentUser) {
+      return undefined;
+    }
+
+    const syncOnFocus = () => {
+      void syncSupabaseSessionUser();
+      void refreshSupabaseUsers();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncOnFocus();
+      }
+    };
+
+    window.addEventListener('focus', syncOnFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', syncOnFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [authReady, refreshSupabaseUsers, state.currentUser?.id, supabaseEnabled, syncSupabaseSessionUser]);
 
   const login = useCallback(async (email, password) => {
-    let supabaseResult = null;
+    if (supabaseEnabled) {
+      const supabaseResult = await signInWithSupabase(email, password);
 
-    if (isSupabaseEnabled()) {
-      supabaseResult = await signInWithSupabase(email, password);
-
-      if (supabaseResult.ok) {
-        const mirroredUser = syncExternalUser(supabaseResult.user);
-        setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
-        refreshState();
-        return { ok: true, user: mirroredUser };
+      if (!supabaseResult.ok) {
+        return supabaseResult;
       }
+
+      const mirroredUser = syncExternalUser(supabaseResult.user);
+      setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
+      setPasswordRecoveryReady(false);
+      refreshState();
+      await refreshSupabaseUsers();
+      return { ok: true, user: mirroredUser };
     }
 
     const result = storageLoginUser(email, password);
     if (result.ok) refreshState();
-    return supabaseResult && !result.ok ? supabaseResult : result;
-  }, [refreshState]);
+    return result;
+  }, [refreshState, refreshSupabaseUsers, supabaseEnabled]);
 
   const register = useCallback(async (payload) => {
-    if (isSupabaseEnabled()) {
+    if (supabaseEnabled) {
       const supabaseResult = await registerWithSupabase(payload);
 
       if (!supabaseResult.ok) {
@@ -136,21 +230,24 @@ export function AppProvider({ children }) {
       if (supabaseResult.user) {
         const mirroredUser = syncExternalUser(supabaseResult.user);
         setCurrentSessionUser(mirroredUser.id, { provider: 'supabase' });
+        setPasswordRecoveryReady(false);
         refreshState();
+        await refreshSupabaseUsers();
         return { ...supabaseResult, user: mirroredUser };
       }
 
       refreshState();
+      await refreshSupabaseUsers();
       return supabaseResult;
     }
 
     const result = storageRegisterUser(payload);
     if (result.ok) refreshState();
     return result;
-  }, [refreshState]);
+  }, [refreshState, refreshSupabaseUsers, supabaseEnabled]);
 
   const requestPasswordReset = useCallback(async (email) => {
-    if (isSupabaseEnabled()) {
+    if (supabaseEnabled) {
       return requestSupabasePasswordReset(email);
     }
 
@@ -161,7 +258,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const updatePassword = useCallback(async ({ email, newPassword }) => {
-    if (isSupabaseEnabled()) {
+    if (supabaseEnabled) {
       const result = await updateSupabasePassword(newPassword);
       if (result.ok) {
         setPasswordRecoveryReady(false);
@@ -175,14 +272,15 @@ export function AppProvider({ children }) {
   }, [refreshState]);
 
   const logout = useCallback(async () => {
-    if (isSupabaseEnabled()) {
+    if (supabaseEnabled) {
       await signOutSupabase();
     }
 
     storageLogoutUser();
     setPasswordRecoveryReady(false);
+    setRemoteUsers([]);
     refreshState();
-  }, [refreshState]);
+  }, [refreshState, supabaseEnabled]);
 
   const changeName = useCallback((name) => {
     setStudentName(name);
@@ -266,8 +364,9 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       ...state,
+      users: supabaseEnabled ? remoteUsers : state.users,
       authReady,
-      isSupabaseEnabled: isSupabaseEnabled(),
+      isSupabaseEnabled: supabaseEnabled,
       passwordRecoveryReady,
       isAuthenticated: !!state.currentUser,
       demoAccounts: DEMO_ACCOUNTS,
@@ -294,6 +393,7 @@ export function AppProvider({ children }) {
       updateCourse,
       savePlatformSettings,
       refreshState,
+      refreshUsers: refreshSupabaseUsers,
     }}>
       {children}
     </AppContext.Provider>

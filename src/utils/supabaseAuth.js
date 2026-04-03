@@ -17,6 +17,16 @@ const normalizeEmail = (value = '') => value.trim().toLowerCase();
 const isRole = (value) => ['Student', 'Teacher', 'Admin', 'Super Admin'].includes(value);
 const getRetiredAccountMessage = (email = '') => RETIRED_ACCOUNT_MESSAGES.get(normalizeEmail(email)) || '';
 
+const buildSupabaseUserRecord = (profile = {}) => ({
+  id: profile.id,
+  name: profile.name || profile.email?.split('@')[0] || 'Student',
+  email: normalizeEmail(profile.email || ''),
+  role: resolveSupabaseRole(profile.email || '', profile.role),
+  createdAt: profile.created_at || new Date().toISOString(),
+  blocked: false,
+  isDemo: false,
+});
+
 const getSessionStorage = () => {
   try {
     return window.localStorage;
@@ -296,11 +306,30 @@ export const buildLocalUserFromSupabase = (user, profile = null) => ({
   id: user.id,
   name: profile?.name || user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student',
   email: normalizeEmail(profile?.email || user?.email || ''),
-  role: profile?.role || resolveSupabaseRole(user?.email || '', user?.user_metadata?.role),
+  role: resolveSupabaseRole(profile?.email || user?.email || '', profile?.role || user?.user_metadata?.role),
   createdAt: profile?.created_at || user?.created_at || new Date().toISOString(),
   blocked: false,
   isDemo: false,
 });
+
+export const listSupabaseProfiles = async () => {
+  const sessionResult = await getSupabaseSession();
+  if (!sessionResult.ok) return sessionResult;
+
+  const result = await requestSupabase('/rest/v1/profiles?select=id,name,email,role,created_at&order=created_at.desc', {
+    accessToken: sessionResult.session.access_token,
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  const users = (result.data || [])
+    .filter((profile) => !getRetiredAccountMessage(profile.email))
+    .map(buildSupabaseUserRecord);
+
+  return { ok: true, users };
+};
 
 export const getSupabaseUser = async () => {
   const sessionResult = await getSupabaseSession();

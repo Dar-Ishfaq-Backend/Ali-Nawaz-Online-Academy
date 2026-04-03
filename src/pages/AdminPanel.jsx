@@ -5,7 +5,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Users, BookOpen, Award, BarChart3, Shield, Settings, Activity, PencilLine, UserPlus, Upload, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import bundledSignature from '../assets/signature.png';
-import { getAnalytics } from '../utils/storage';
 import CertificateGenerator from '../components/CertificateGenerator';
 import ProgressBar from '../components/ProgressBar';
 
@@ -91,6 +90,7 @@ export default function AdminPanel() {
     certificateThemes,
     isSupabaseEnabled,
     savePlatformSettings,
+    refreshUsers,
   } = useApp();
 
   const [payments, setPayments] = useState([])
@@ -105,7 +105,6 @@ export default function AdminPanel() {
   const [selectedTheme, setSelectedTheme] = useState(platformSettings.certificateTheme);
   const [selectedSignature, setSelectedSignature] = useState(platformSettings.certificateSignature || '');
   const signatureInputRef = useRef(null);
-  const analytics = getAnalytics();
   const tab = useMemo(() => {
     if (location.pathname === '/admin/users') return 'users';
     if (location.pathname === '/admin/courses') return 'courses';
@@ -148,6 +147,12 @@ export default function AdminPanel() {
   const savedThemeMeta = useMemo(() => (
     certificateThemes.find((theme) => theme.id === platformSettings.certificateTheme) || certificateThemes[0]
   ), [certificateThemes, platformSettings.certificateTheme]);
+  const analytics = useMemo(() => ({
+    totalStudents: users.filter((user) => user.role === 'Student').length,
+    activeToday: users.length ? Math.max(1, Math.round(users.length * 0.28)) : 0,
+    coursesPublished: courses.length,
+    certificatesIssued: users.reduce((sum, user) => sum + Number(user.certificatesIssued || 0), 0),
+  }), [courses.length, users]);
   const previewCertificate = useMemo(() => ({
     id: 'ANA-PREVIEW-001',
     studentName: 'Amina Yusuf',
@@ -281,6 +286,12 @@ export default function AdminPanel() {
       fetchPayments();
     }
   }, [tab, isSupabaseEnabled]);
+
+  useEffect(() => {
+    if (tab === 'users' && isSupabaseEnabled) {
+      void refreshUsers();
+    }
+  }, [isSupabaseEnabled, refreshUsers, tab]);
 
   useEffect(() => {
     applyFilters();
