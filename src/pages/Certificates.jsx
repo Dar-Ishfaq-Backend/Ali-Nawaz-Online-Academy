@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Award, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { LESSON_WATCH_THRESHOLD, canGenerateCertificate, getCourseProgress, getCourseWatchStats } from '../utils/storage';
+import { CERTIFICATE_WATCH_THRESHOLD, canGenerateCertificate, getCourseWatchStats } from '../utils/storage';
 import CertificateGenerator from '../components/CertificateGenerator';
 import { getCertificateTemplateMeta, getCertificateThemeMeta } from '../utils/certificateTemplates';
 
@@ -19,7 +19,7 @@ export default function Certificates() {
   const completedNoCert = courses
     .filter((course) => enrollments[course.id] && canGenerateCertificate(course) && !certificates[course.id]);
   const watchLockedCourses = courses
-    .filter((course) => enrollments[course.id] && getCourseProgress(course) === 100 && !canGenerateCertificate(course) && !certificates[course.id]);
+    .filter((course) => enrollments[course.id] && !canGenerateCertificate(course) && !certificates[course.id]);
 
   const certList = Object.values(certificates);
 
@@ -64,8 +64,8 @@ export default function Certificates() {
                   <p className="font-cinzel font-bold text-gold-300 text-sm">{course.title}</p>
                   <p className="text-cream/40 text-xs font-crimson">
                     {bypassWatchRequirement
-                      ? '100% completed with admin watch-rule override'
-                      : `100% completed and ${LESSON_WATCH_THRESHOLD}% watched on every lesson`}
+                      ? 'Admin watch-rule override is active'
+                      : `${getCourseWatchStats(course).coursePercent}% of the full course watched`}
                   </p>
                 </div>
                 <button onClick={() => {
@@ -105,7 +105,7 @@ export default function Certificates() {
                   <div className="flex-1">
                     <p className="font-cinzel font-bold text-emerald-300 text-sm">{course.title}</p>
                     <p className="text-cream/40 text-xs font-crimson">
-                      {watchStats.eligibleLessons}/{watchStats.totalLessons} lessons have reached {LESSON_WATCH_THRESHOLD}% watch time
+                      {watchStats.coursePercent}% watched so far. Reach {CERTIFICATE_WATCH_THRESHOLD}% overall to claim the certificate.
                     </p>
                   </div>
                   <Link to={`/course/${course.id}`} className="btn-emerald text-xs px-4 py-2">
@@ -125,8 +125,8 @@ export default function Certificates() {
           <p className="font-cinzel text-cream/30 text-lg mb-2">No certificates yet</p>
           <p className="text-cream/20 font-crimson text-sm mb-6">
             {bypassWatchRequirement
-              ? 'Complete each lesson to earn your first certificate.'
-              : `Complete each lesson and watch at least ${LESSON_WATCH_THRESHOLD}% to earn your first certificate`}
+              ? 'Open any eligible course to issue your first certificate.'
+              : `Watch at least ${CERTIFICATE_WATCH_THRESHOLD}% of an enrolled course to earn your first certificate.`}
           </p>
           <Link to="/courses" className="btn-gold inline-block">Browse Courses</Link>
         </div>

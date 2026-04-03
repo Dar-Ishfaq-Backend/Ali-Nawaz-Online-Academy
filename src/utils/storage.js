@@ -16,6 +16,7 @@ const PREFIX = 'ali_nawaz_';
 const DEFAULT_VIDEO_ID = 'dQw4w9WgXcQ';
 const DEFAULT_THUMBNAIL = 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80';
 export const LESSON_WATCH_THRESHOLD = 70;
+export const CERTIFICATE_WATCH_THRESHOLD = 70;
 const DEFAULT_FREE_PREVIEW_LESSONS = 3;
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
 const LEGACY_REMOVED_USER_IDS = new Set(['demo-super-admin']);
@@ -746,30 +747,50 @@ export const getCourseProgress = (course) => {
   return Math.round((done / course.lessons.length) * 100);
 };
 
-export const getCourseWatchStats = (course, threshold = LESSON_WATCH_THRESHOLD) => {
+export const getCourseWatchStats = (course, threshold = CERTIFICATE_WATCH_THRESHOLD) => {
   if (!course?.lessons?.length) {
     return {
       threshold,
       totalLessons: 0,
       eligibleLessons: 0,
       averagePercent: 0,
+      coursePercent: 0,
+      watchedSeconds: 0,
+      durationSeconds: 0,
       isEligible: false,
     };
   }
 
   const progressMap = getLessonWatchProgress();
-  const lessonPercents = course.lessons.map((lesson) => normalizeProgressPercent(progressMap[lesson.id]?.percent));
+  const lessonStats = course.lessons.map((lesson) => {
+    const progress = progressMap[lesson.id] || {};
+
+    return {
+      percent: normalizeProgressPercent(progress.percent),
+      watchedSeconds: normalizeProgressSeconds(progress.watchedSeconds),
+      durationSeconds: normalizeProgressSeconds(progress.durationSeconds),
+    };
+  });
+  const lessonPercents = lessonStats.map((lesson) => lesson.percent);
   const eligibleLessons = lessonPercents.filter((percent) => percent >= threshold).length;
   const averagePercent = Math.round(
     lessonPercents.reduce((sum, percent) => sum + percent, 0) / course.lessons.length
   );
+  const durationSeconds = lessonStats.reduce((sum, lesson) => sum + lesson.durationSeconds, 0);
+  const watchedSeconds = lessonStats.reduce((sum, lesson) => sum + Math.min(lesson.watchedSeconds, lesson.durationSeconds || lesson.watchedSeconds), 0);
+  const coursePercent = durationSeconds > 0
+    ? Math.max(0, Math.min(100, Math.round((watchedSeconds / durationSeconds) * 100)))
+    : averagePercent;
 
   return {
     threshold,
     totalLessons: course.lessons.length,
     eligibleLessons,
     averagePercent,
-    isEligible: eligibleLessons === course.lessons.length,
+    coursePercent,
+    watchedSeconds,
+    durationSeconds,
+    isEligible: coursePercent >= threshold,
   };
 };
 
@@ -782,9 +803,8 @@ export const getCourseProgressForUser = (course, userId) => {
 
 export const isCourseComplete = (course) => getCourseProgress(course) === 100;
 
-export const canGenerateCertificate = (course, threshold = LESSON_WATCH_THRESHOLD) => {
+export const canGenerateCertificate = (course, threshold = CERTIFICATE_WATCH_THRESHOLD) => {
   if (!course?.lessons?.length) return false;
-  if (getCourseProgress(course) !== 100) return false;
   if (canBypassWatchRequirement()) return true;
   return getCourseWatchStats(course, threshold).isEligible;
 };
@@ -841,7 +861,7 @@ export const issueCertificate = (courseId, courseName, studentName) => {
   if (!course || !canGenerateCertificate(course)) {
     return {
       ok: false,
-      message: `Watch at least ${LESSON_WATCH_THRESHOLD}% of every lesson and mark each lesson complete before claiming the certificate.`,
+      message: `Watch at least ${CERTIFICATE_WATCH_THRESHOLD}% of the full course before claiming the certificate.`,
     };
   }
 
