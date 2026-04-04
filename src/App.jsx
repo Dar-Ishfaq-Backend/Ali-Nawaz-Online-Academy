@@ -13,6 +13,9 @@ import Certificates from './pages/Certificates';
 import TeacherPanel from './pages/TeacherPanel';
 import AdminPanel from './pages/AdminPanel';
 import AalimProgram from './pages/AalimProgram';
+import StudentIssueForm from './components/StudentIssueForm';
+import AdminIssues from './components/AdminIssues';
+import SuperAdminIssues from './components/SuperAdminIssues';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -97,12 +100,15 @@ function AppRoutes() {
         <Route path="/course/:courseId" element={<CoursePlayer />} />
         <Route path="/my-courses" element={<MyCourses />} />
         <Route path="/certificates" element={<Certificates />} />
+        <Route path="/support" element={<StudentIssueForm />} />
         <Route path="/teacher" element={<TeacherPanel />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/admin/users" element={<AdminPanel />} />
         <Route path="/admin/courses" element={<AdminPanel />} />
         <Route path="/admin/payments" element={<AdminPanel />} />
         <Route path="/admin/settings" element={<AdminPanel />} />
+        <Route path="/admin/issues" element={<AdminIssues />} />
+        <Route path="/super-admin/issues" element={<SuperAdminIssues />} />
         <Route path="*" element={<ProtectedNotFound />} />
       </Route>
     </Routes>

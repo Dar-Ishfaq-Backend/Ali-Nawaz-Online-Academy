@@ -53,11 +53,27 @@ create table if not exists public.certificates (
   issued_at timestamptz not null default now()
 );
 
+create table if not exists public.issues (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'student',
+  subject text not null default '',
+  message text not null default '',
+  screenshot_url text not null default '',
+  status text not null default 'open',
+  assigned_to text not null default 'admin',
+  created_at timestamptz not null default now(),
+  constraint issues_role_check check (role in ('student', 'admin')),
+  constraint issues_status_check check (status in ('open', 'resolved', 'escalated')),
+  constraint issues_assigned_to_check check (assigned_to in ('admin', 'super_admin'))
+);
+
 alter table public.profiles enable row level security;
 alter table public.courses enable row level security;
 alter table public.enrollments enable row level security;
 alter table public.payments enable row level security;
 alter table public.certificates enable row level security;
+alter table public.issues enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -72,6 +88,29 @@ as $$
     ),
     false
   );
+$$;
+
+create or replace function public.current_platform_role()
+returns text
+language sql
+stable
+as $$
+  select coalesce(
+    (
+      select role
+      from public.profiles
+      where id = auth.uid()
+    ),
+    'Student'
+  );
+$$;
+
+create or replace function public.is_super_admin()
+returns boolean
+language sql
+stable
+as $$
+  select public.current_platform_role() = 'Super Admin';
 $$;
 
 drop policy if exists "Profiles select own row" on public.profiles;
@@ -184,8 +223,74 @@ for delete
 to authenticated
 using (auth.uid() = user_id or public.is_admin());
 
+drop policy if exists "Students view their own issues" on public.issues;
+create policy "Students view their own issues"
+on public.issues
+for select
+to authenticated
+using (
+  auth.uid() = user_id
+  or (
+    public.current_platform_role() = 'Admin'
+    and role = 'student'
+  )
+  or (
+    public.current_platform_role() = 'Super Admin'
+    and assigned_to = 'super_admin'
+  )
+);
+
+drop policy if exists "Students create their own issues" on public.issues;
+create policy "Students create their own issues"
+on public.issues
+for insert
+to authenticated
+with check (
+  auth.uid() = user_id
+  and role = 'student'
+  and status = 'open'
+  and assigned_to = 'admin'
+);
+
+drop policy if exists "Admins update assigned issues" on public.issues;
+create policy "Admins update assigned issues"
+on public.issues
+for update
+to authenticated
+using (
+  public.current_platform_role() = 'Admin'
+  and role = 'student'
+  and assigned_to = 'admin'
+)
+with check (
+  public.current_platform_role() = 'Admin'
+  and role = 'student'
+  and assigned_to in ('admin', 'super_admin')
+  and status in ('open', 'resolved', 'escalated')
+);
+
+drop policy if exists "Super admins update escalated issues" on public.issues;
+create policy "Super admins update escalated issues"
+on public.issues
+for update
+to authenticated
+using (
+  public.current_platform_role() = 'Super Admin'
+  and assigned_to = 'super_admin'
+)
+with check (
+  public.current_platform_role() = 'Super Admin'
+  and assigned_to = 'super_admin'
+  and status in ('escalated', 'resolved')
+);
+
 insert into storage.buckets (id, name, public)
 values ('payments', 'payments', true)
+on conflict (id) do update
+set public = excluded.public;
+
+insert into storage.buckets (id, name, public)
+values ('issues', 'issues', true)
 on conflict (id) do update
 set public = excluded.public;
 
@@ -202,3 +307,24 @@ on storage.objects
 for insert
 to authenticated
 with check (bucket_id = 'payments');
+
+drop policy if exists "Issue screenshots are publicly viewable" on storage.objects;
+create policy "Issue screenshots are publicly viewable"
+on storage.objects
+for select
+to public
+using (bucket_id = 'issues');
+
+drop policy if exists "Authenticated users can upload issue screenshots" on storage.objects;
+create policy "Authenticated users can upload issue screenshots"
+on storage.objects
+for insert
+to authenticated
+with check (bucket_id = 'issues');
+
+drop policy if exists "Authenticated users can delete issue screenshots" on storage.objects;
+create policy "Authenticated users can delete issue screenshots"
+on storage.objects
+for delete
+to authenticated
+using (bucket_id = 'issues');

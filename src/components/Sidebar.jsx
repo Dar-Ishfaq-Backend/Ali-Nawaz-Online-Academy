@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, GraduationCap, Award,
-  Users, BarChart3, PlusCircle, X, Flame, LogOut
+  Users, BarChart3, PlusCircle, X, Flame, LogOut, LifeBuoy
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import AcademyLogo from './AcademyLogo';
@@ -23,6 +23,7 @@ export default function Sidebar({ open, onClose }) {
     { to: '/courses', icon: BookOpen, label: 'All Courses' },
     { to: '/my-courses', icon: GraduationCap, label: 'My Learning' },
     { to: '/certificates', icon: Award, label: 'Certificates' },
+    { to: '/support', icon: LifeBuoy, label: 'Support' },
   ];
 
   const teacherNav = [
@@ -37,6 +38,7 @@ export default function Sidebar({ open, onClose }) {
     { to: '/admin', icon: BarChart3, label: 'Admin Panel' },
     { to: '/teacher', icon: PlusCircle, label: 'Content' },
     { to: '/admin/users', icon: Users, label: 'Users' },
+    { to: '/admin/issues', icon: LifeBuoy, label: 'Issues' },
     { to: '/admin/settings', icon: Award, label: 'Templates' },
   ];
 
@@ -46,6 +48,7 @@ export default function Sidebar({ open, onClose }) {
     { to: '/admin', icon: BarChart3, label: 'Analytics' },
     { to: '/teacher', icon: PlusCircle, label: 'Content' },
     { to: '/admin/users', icon: Users, label: 'Users' },
+    { to: '/super-admin/issues', icon: LifeBuoy, label: 'Escalations' },
     { to: '/admin/settings', icon: Award, label: 'Templates' },
   ];
 
