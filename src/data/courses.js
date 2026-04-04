@@ -82,6 +82,12 @@ const SEERAH_LESSONS = createPlaylistLessons('seerah', 'se', 'A lesson from the 
 const DAILY_DUAS_LESSONS = createPlaylistLessons('short-daily-duas', 'sd', 'A short daily dua lesson.', { limit: 6 });
 const SALAH_BASICS_LESSONS = createPlaylistLessons('short-salah-basics', 'ss', 'A short salah basics lesson.', { limit: 5 });
 const RAMADAN_PREP_LESSONS = createPlaylistLessons('short-ramadan-prep', 'sr', 'A short Ramadan preparation lesson.', { limit: 4 });
+const PAYMENT_TEST_DUAS_LESSONS = cloneLessonSeries(
+  DAILY_DUAS_LESSONS,
+  'ptd',
+  'A compact paid test lesson for checking the Ali Nawaz Academy payment and approval flow.',
+  { limit: 5 },
+);
 const QAIDA_FOUNDATIONS_LESSONS = [
   {
     id: 'qf1',
@@ -454,6 +460,26 @@ const RAW_COURSES = [
     playlistId: 'PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
     lessons: SPOKEN_ARABIC_KICKSTART_LESSONS,
+  },
+  {
+    id: 'payment-test-duas-course',
+    courseGroup: 'short',
+    subject: 'Duas',
+    title: 'Payment Test Mini Course',
+    description: 'A very small paid course with five short dua videos so you can quickly test student enrollment, payment proof submission, and admin approval on the live system.',
+    thumbnail: 'https://images.unsplash.com/photo-1519817914152-22f90e22f9c4?w=600&q=80',
+    instructor: 'Ustadh Abdul Hakeem',
+    level: 'Beginner',
+    duration: '5 short lessons',
+    totalLessons: PAYMENT_TEST_DUAS_LESSONS.length,
+    category: 'Mini Course',
+    requiresPayment: true,
+    freePreviewLessons: 2,
+    currency: 'PKR',
+    pricePKR: 15,
+    playlistId: 'PL5nHjmHggAVhlvtCS8Lw848ikBKLDWMNO',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PL5nHjmHggAVhlvtCS8Lw848ikBKLDWMNO',
+    lessons: PAYMENT_TEST_DUAS_LESSONS,
   },
   {
     id: 'short-daily-duas',

@@ -46,6 +46,22 @@ const createExportClone = (element) => {
   clone.style.minWidth = `${CERTIFICATE_LAYOUT.width}px`;
   clone.style.animation = 'none';
   clone.style.transform = 'none';
+  clone.dataset.certificateExport = 'true';
+
+  const textureLayer = clone.querySelector('.certificate-texture-layer');
+  if (textureLayer) {
+    textureLayer.style.backgroundImage = `
+      radial-gradient(circle at 50% 60%, rgba(174, 142, 78, 0.045) 0%, transparent 26%),
+      linear-gradient(180deg, rgba(255,255,255,0.12), transparent 30%)
+    `;
+    textureLayer.style.backgroundSize = 'auto';
+    textureLayer.style.opacity = '0.35';
+  }
+
+  const root = clone.querySelector('.certificate-root');
+  if (root) {
+    root.style.boxShadow = '0 18px 36px rgba(24,15,4,0.16)';
+  }
 
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);

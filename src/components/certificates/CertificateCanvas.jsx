@@ -131,7 +131,7 @@ const SignatureBlock = ({ signatureSrc }) => (
     <div className="flex h-14 w-40 items-end">
       <img src={signatureSrc} alt="Ali Nawaz Academy signature" className="max-h-12 w-auto object-contain" />
     </div>
-    <div className="w-full" style={{ borderTop: `1px solid ${CERTIFICATE_LAYOUT.frameGold}` }}>
+    <div className="w-[8.75rem]" style={{ borderTop: `1px solid ${CERTIFICATE_LAYOUT.frameGold}` }}>
       <p className="mt-2 font-cinzel text-[0.55rem] uppercase" style={{ color: CERTIFICATE_LAYOUT.inkSoft, letterSpacing: '0.16em' }}>
         Authorized Instructor
       </p>
@@ -226,30 +226,29 @@ export default function CertificateCanvas({ cert, signatureImage }) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-[28px] shadow-[0_24px_64px_rgba(24,15,4,0.22)]"
+      className="certificate-root relative overflow-hidden rounded-[28px] shadow-[0_24px_64px_rgba(24,15,4,0.22)]"
       style={{
         width: CERTIFICATE_LAYOUT.width,
         minWidth: CERTIFICATE_LAYOUT.width,
         maxWidth: CERTIFICATE_LAYOUT.width,
         height: CERTIFICATE_LAYOUT.height,
         background: `
-          radial-gradient(circle at 18% 16%, rgba(255,255,255,0.55), transparent 18%),
-          radial-gradient(circle at 82% 18%, rgba(255,255,255,0.45), transparent 18%),
-          linear-gradient(180deg, rgba(255,255,255,0.38), transparent 16%, transparent 84%, rgba(191,151,65,0.09)),
+          radial-gradient(circle at 50% 18%, rgba(255,255,255,0.2), transparent 18%),
+          linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0.04) 18%, transparent 38%, rgba(191,151,65,0.08) 100%),
           linear-gradient(135deg, ${CERTIFICATE_LAYOUT.parchment} 0%, ${CERTIFICATE_LAYOUT.parchmentWarm} 56%, #e5d0a4 100%)
         `,
       }}
     >
       <div
-        className="absolute inset-0"
+        className="certificate-texture-layer absolute inset-0"
         style={{
           backgroundImage: `
-            radial-gradient(circle at 50% 36%, rgba(174, 142, 78, 0.085) 0%, transparent 26%),
+            radial-gradient(circle at 50% 60%, rgba(174, 142, 78, 0.05) 0%, transparent 24%),
             linear-gradient(45deg, rgba(201,162,78,0.03) 25%, transparent 25%, transparent 50%, rgba(201,162,78,0.03) 50%, rgba(201,162,78,0.03) 75%, transparent 75%, transparent),
             linear-gradient(-45deg, rgba(17,69,49,0.025) 25%, transparent 25%, transparent 50%, rgba(17,69,49,0.025) 50%, rgba(17,69,49,0.025) 75%, transparent 75%, transparent)
           `,
           backgroundSize: 'auto, 64px 64px, 64px 64px',
-          opacity: 0.72,
+          opacity: 0.48,
         }}
       />
 
