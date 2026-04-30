@@ -152,7 +152,7 @@ export default function StudentIssueForm() {
           />
           {screenshotFile && (
             <p className="text-xs font-crimson text-cream/35">
-              Selected: {screenshotFile.name}
+              Selected: {screenshotFile.name}. It will be compressed automatically to roughly 100-150 KB before upload.
             </p>
           )}
         </div>

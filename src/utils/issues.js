@@ -1,4 +1,5 @@
 import { getSupabaseSession, isSupabaseEnabled, requestSupabase } from './supabaseAuth';
+import { compressScreenshot } from './compressScreenshot';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -126,11 +127,22 @@ const uploadIssueScreenshot = async (file, userId, accessToken) => {
     return { ok: false, message: 'Please keep the screenshot under 5 MB.' };
   }
 
-  const uploadPath = buildIssueUploadPath(userId, file.name);
+  let uploadFile = file;
+
+  try {
+    uploadFile = await compressScreenshot(file);
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'The issue screenshot could not be compressed.',
+    };
+  }
+
+  const uploadPath = buildIssueUploadPath(userId, uploadFile.name);
   const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${ISSUE_BUCKET}/${uploadPath}`, {
     method: 'POST',
-    headers: buildStorageHeaders(accessToken, file.type || 'application/octet-stream'),
-    body: file,
+    headers: buildStorageHeaders(accessToken, uploadFile.type || 'application/octet-stream'),
+    body: uploadFile,
   });
 
   if (!response.ok) {

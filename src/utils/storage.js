@@ -30,6 +30,10 @@ const key = (k) => `${PREFIX}${k}`;
 const normalizeEmail = (email) => email.trim().toLowerCase();
 const normalizeTotalLessons = (value, fallback = 1) => Math.max(1, Number.parseInt(value, 10) || fallback || 1);
 const normalizePricePkr = (value) => Math.max(0, Number.parseInt(value, 10) || 0);
+const normalizeDisplayOrder = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 const normalizeFreePreviewLessons = (value, totalLessons, fallback = DEFAULT_FREE_PREVIEW_LESSONS) => {
   const parsed = Number.parseInt(value, 10);
   const normalized = Number.isFinite(parsed) ? parsed : fallback;
@@ -260,6 +264,7 @@ const serializeCourse = (course) => {
     created_at: hydrated.created_at,
     lessons: hydrated.lessons,
     freePreviewLessons: hydrated.freePreviewLessons,
+    displayOrder: hydrated.displayOrder,
     createdBy: hydrated.createdBy || '',
     isCustom: Boolean(hydrated.isCustom),
   };
@@ -272,13 +277,18 @@ const hydrateCourse = (course) => {
   const isPaid = typeof course.is_paid === 'boolean'
     ? course.is_paid
     : Boolean(course.requiresPayment ?? price > 0);
-  const totalLessons = normalizeTotalLessons(course.totalLessons, course.lessons?.length || 1);
-  const lessons = buildLessons({
-    title: course.title,
-    totalLessons,
-    playlistUrl: youtubePlaylistUrl,
-    existingLessons: Array.isArray(course.lessons) ? course.lessons : [],
-  });
+  const isSeries = Boolean(course.isSeries);
+  const totalLessons = isSeries
+    ? Math.max(0, Number.parseInt(course.totalLessons, 10) || 0)
+    : normalizeTotalLessons(course.totalLessons, course.lessons?.length || 1);
+  const lessons = isSeries
+    ? []
+    : buildLessons({
+      title: course.title,
+      totalLessons,
+      playlistUrl: youtubePlaylistUrl,
+      existingLessons: Array.isArray(course.lessons) ? course.lessons : [],
+    });
 
   return {
     ...course,
@@ -297,7 +307,12 @@ const hydrateCourse = (course) => {
     playlistUrl: youtubePlaylistUrl,
     createdAt,
     currency: course.currency || 'PKR',
+    isSeries,
+    seriesCourseIds: Array.isArray(course.seriesCourseIds) ? course.seriesCourseIds.map(String) : [],
+    parentSeriesId: course.parentSeriesId || '',
+    hiddenFromCatalog: Boolean(course.hiddenFromCatalog),
     isShortCourse: Boolean(course.isShortCourse),
+    displayOrder: normalizeDisplayOrder(course.displayOrder),
     thumbnail: course.thumbnail || DEFAULT_THUMBNAIL,
     subject: course.subject || 'General Studies',
     category: course.category || (isPaid ? 'Premium Course' : 'Free Course'),
@@ -621,6 +636,25 @@ export const setStudentName = (name) => {
 
 export const getEnrollments = () => getUserItem('enrollments', {});
 export const getCoursePayments = () => getUserItem('course_payments', {});
+export const getSeriesSelections = () => getUserItem('series_selections', {});
+
+export const getActiveSeriesCourseId = (seriesId, fallbackCourseIds = []) => {
+  const selections = getSeriesSelections();
+  const selectedCourseId = selections[seriesId];
+
+  if (selectedCourseId && fallbackCourseIds.includes(selectedCourseId)) {
+    return selectedCourseId;
+  }
+
+  return fallbackCourseIds[0] || '';
+};
+
+export const setActiveSeriesCourseId = (seriesId, courseId) => {
+  const selections = getSeriesSelections();
+  selections[seriesId] = courseId;
+  setUserItem('series_selections', selections);
+  return courseId;
+};
 
 export const isCourseAccessUnlocked = (course, role = getCurrentUser()?.role) => {
   if (!course) return false;
@@ -752,6 +786,12 @@ export const markLessonIncomplete = (lessonId) => {
 export const isLessonComplete = (lessonId) => !!getCompletedLessons()[lessonId];
 
 export const getCourseProgress = (course) => {
+  if (course?.isSeries && Array.isArray(course.seriesCourseIds)) {
+    const activeCourseId = getActiveSeriesCourseId(course.id, course.seriesCourseIds);
+    const activeCourse = activeCourseId ? findManagedCourse(activeCourseId) : null;
+    return activeCourse ? getCourseProgress(activeCourse) : 0;
+  }
+
   if (!course?.lessons?.length) return 0;
   const completed = getCompletedLessons();
   const done = course.lessons.filter((lesson) => completed[lesson.id]).length;
@@ -815,6 +855,7 @@ export const getCourseProgressForUser = (course, userId) => {
 export const isCourseComplete = (course) => getCourseProgress(course) === 100;
 
 export const canGenerateCertificate = (course, threshold = CERTIFICATE_WATCH_THRESHOLD) => {
+  if (course?.isSeries) return false;
   if (!course?.lessons?.length) return false;
   if (canBypassWatchRequirement()) return true;
   return getCourseWatchStats(course, threshold).isEligible;

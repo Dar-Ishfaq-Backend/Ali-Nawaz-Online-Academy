@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { CERTIFICATE_LAYOUT } from '../utils/certificateTemplates';
 import CertificateCanvas from './certificates/CertificateCanvas';
@@ -71,6 +71,32 @@ const createExportClone = (element) => {
 
 export default function CertificateGenerator({ cert, signatureImage, onDownload, showDownload = true }) {
   const certRef = useRef(null);
+  const previewFrameRef = useRef(null);
+  const [previewScale, setPreviewScale] = useState(1);
+
+  useEffect(() => {
+    const element = previewFrameRef.current;
+    if (!element) return undefined;
+
+    const updateScale = () => {
+      const styles = window.getComputedStyle(element);
+      const horizontalPadding = Number.parseFloat(styles.paddingLeft || '0') + Number.parseFloat(styles.paddingRight || '0');
+      const nextWidth = Math.max(0, element.clientWidth - horizontalPadding);
+      if (!nextWidth) return;
+      setPreviewScale(Math.min(1, nextWidth / CERTIFICATE_LAYOUT.width));
+    };
+
+    updateScale();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => updateScale());
+      observer.observe(element);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   const handleDownload = async () => {
     if (!certRef.current) return;
@@ -142,9 +168,24 @@ export default function CertificateGenerator({ cert, signatureImage, onDownload,
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="overflow-auto rounded-[26px] p-3 sm:p-5" style={{ background: 'rgba(3, 18, 12, 0.34)' }}>
-        <div className="mx-auto w-fit">
-          <div ref={certRef}>
+      <div ref={previewFrameRef} className="overflow-hidden rounded-[26px] p-3 sm:p-5" style={{ background: 'rgba(3, 18, 12, 0.34)' }}>
+        <div
+          className="mx-auto overflow-hidden"
+          style={{
+            width: `${CERTIFICATE_LAYOUT.width * previewScale}px`,
+            height: `${CERTIFICATE_LAYOUT.height * previewScale}px`,
+            maxWidth: '100%',
+          }}
+        >
+          <div
+            ref={certRef}
+            style={{
+              width: `${CERTIFICATE_LAYOUT.width}px`,
+              height: `${CERTIFICATE_LAYOUT.height}px`,
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             <CertificateCanvas cert={cert} signatureImage={signatureImage} />
           </div>
         </div>

@@ -834,7 +834,7 @@ export default function AdminPanel() {
             </p>
           </div>
 
-          <div className="grid xl:grid-cols-[360px,1fr] gap-5 items-start">
+          <div className="grid xl:grid-cols-[360px,minmax(0,1fr)] gap-5 items-start">
             <div className="space-y-4">
               <div className="glass-card p-4 space-y-4">
                 <div>
@@ -930,7 +930,7 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            <div className="glass-card p-3 sm:p-5">
+            <div className="glass-card min-w-0 p-3 sm:p-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
                 <div>
                   <p className="text-xs font-cinzel text-gold-500/60 tracking-wider mb-1">LIVE WEBSITE PREVIEW</p>

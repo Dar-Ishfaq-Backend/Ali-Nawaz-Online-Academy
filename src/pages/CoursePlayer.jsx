@@ -5,6 +5,8 @@ import { supabase } from '../supabase';
 import { useApp } from '../context/AppContext';
 import VideoPlayer from '../components/VideoPlayer';
 import CoursePaymentCard from '../components/CoursePaymentCard';
+import SeriesCourseSelector from '../components/SeriesCourseSelector';
+import { getActiveSeriesCourseId, getCourseProgress, setActiveSeriesCourseId } from '../utils/storage';
 
 const normalizePaymentInsertError = (message, courseKey) => {
   if (!message) {
@@ -48,19 +50,35 @@ export default function CoursePlayer() {
   const [message, setMessage] = useState('');
   const [approvalStatus, setApprovalStatus] = useState('');
   const [checkingAccess, setCheckingAccess] = useState(false);
+  const [activeSeriesCourseId, setActiveSeriesCourseIdState] = useState('');
 
   const course = location.state?.course || courses.find((item) => item.id === courseId);
   const courseKey = course ? String(course.id) : '';
+  const isSeriesCourse = Boolean(course?.isSeries && Array.isArray(course?.seriesCourseIds));
+  const seriesCourses = useMemo(
+    () => (
+      isSeriesCourse
+        ? course.seriesCourseIds
+          .map((id) => courses.find((item) => item.id === id))
+          .filter(Boolean)
+          .sort((a, b) => (a.displayOrder ?? Number.POSITIVE_INFINITY) - (b.displayOrder ?? Number.POSITIVE_INFINITY))
+        : []
+    ),
+    [course, courses, isSeriesCourse],
+  );
+  const activeSeriesCourse = seriesCourses.find((item) => item.id === activeSeriesCourseId) || seriesCourses[0] || null;
   const isPaidCourse = Boolean(course?.is_paid);
   const coursePrice = Math.max(0, Number(course?.price) || 0);
+  const parentSeriesEnrolled = Boolean(course?.parentSeriesId && enrollments[course.parentSeriesId]);
 
-  const enrolled = course ? Boolean(enrollments[courseKey]) : false;
+  const enrolled = course ? Boolean(enrollments[courseKey] || parentSeriesEnrolled) : false;
   const needsPayment = isPaidCourse && role === 'Student';
   const localUnlocked = Boolean(course && coursePayments[courseKey]?.unlockedAt);
   const hasFullAccess = Boolean(
     course
     && (role !== 'Student' || !isPaidCourse || localUnlocked || approvalStatus === 'approved'),
   );
+  const seriesProgress = activeSeriesCourse ? getCourseProgress(activeSeriesCourse) : 0;
 
   const statusConfig = useMemo(() => {
     if (approvalStatus === 'approved') {
@@ -92,6 +110,16 @@ export default function CoursePlayer() {
 
     return null;
   }, [approvalStatus]);
+
+  useEffect(() => {
+    if (!isSeriesCourse || !course) {
+      setActiveSeriesCourseIdState('');
+      return;
+    }
+
+    const nextActiveCourseId = getActiveSeriesCourseId(course.id, seriesCourses.map((item) => item.id));
+    setActiveSeriesCourseIdState(nextActiveCourseId);
+  }, [course, isSeriesCourse, seriesCourses]);
 
   useEffect(() => {
     if (!course || !enrolled) {
@@ -179,11 +207,41 @@ export default function CoursePlayer() {
 
   const handleEnroll = () => {
     enrollCourse(courseKey);
+
+    if (isSeriesCourse && activeSeriesCourse) {
+      setActiveSeriesCourseId(courseKey, activeSeriesCourse.id);
+      setMessage(`You are enrolled in this series. Your active study path is now ${activeSeriesCourse.title}.`);
+      return;
+    }
+
     setMessage(
       isPaidCourse
         ? 'You can now start the free preview lessons and submit payment when you are ready to unlock the full course.'
         : 'You are enrolled. Start learning below.',
     );
+  };
+
+  const handleSelectSeriesCourse = (nextCourseId) => {
+    if (!isSeriesCourse) return;
+
+    setActiveSeriesCourseId(courseKey, nextCourseId);
+    setActiveSeriesCourseIdState(nextCourseId);
+
+    const nextCourse = seriesCourses.find((item) => item.id === nextCourseId);
+    if (enrolled && nextCourse) {
+      setMessage(`Your active study path has been updated to ${nextCourse.title}.`);
+    }
+  };
+
+  const handleResumeSeriesCourse = () => {
+    if (!isSeriesCourse || !activeSeriesCourse) return;
+
+    if (!enrolled) {
+      handleEnroll();
+      return;
+    }
+
+    navigate(`/course/${activeSeriesCourse.id}`, { state: { course: activeSeriesCourse } });
   };
 
   const handleUnlock = async ({
@@ -232,6 +290,37 @@ export default function CoursePlayer() {
 
     return { ok: true, message: 'Payment submitted' };
   };
+
+  if (isSeriesCourse) {
+    return (
+      <div className="space-y-5">
+        <div className="max-w-4xl mx-auto">
+          <button type="button" onClick={() => navigate(-1)} className="text-sm font-crimson text-gold-400 hover:text-gold-300 mb-3">
+            ← Back
+          </button>
+        </div>
+
+        {message && (
+          <div
+            className="max-w-4xl mx-auto rounded-xl px-4 py-3 text-sm font-crimson text-emerald-200"
+            style={{ background: 'rgba(6,78,59,0.35)', border: '1px solid rgba(52,211,153,0.25)' }}
+          >
+            {message}
+          </div>
+        )}
+
+        <SeriesCourseSelector
+          seriesCourse={course}
+          seriesCourses={seriesCourses}
+          activeCourseId={activeSeriesCourseId}
+          enrolled={enrolled}
+          progress={seriesProgress}
+          onSelectCourse={handleSelectSeriesCourse}
+          onPrimaryAction={handleResumeSeriesCourse}
+        />
+      </div>
+    );
+  }
 
   if (!enrolled) {
     return (

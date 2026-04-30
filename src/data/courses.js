@@ -16,6 +16,8 @@ const sanitizeLessonTitle = (title = '') => title
   .replace(/\\u0026/g, '&')
   .trim();
 
+const PLAYLIST_PLACEHOLDER_VIDEO_ID = 'dQw4w9WgXcQ';
+
 const createPlaylistLessons = (key, prefix, description, { limit } = {}) => {
   const source = playlistMetadata[key] || [];
   const selectedLessons = source.slice(0, limit ?? source.length);
@@ -36,6 +38,20 @@ const cloneLessonSeries = (lessons, prefix, description, { limit } = {}) => less
     id: `${prefix}${index + 1}`,
     description,
   }));
+
+const createPlaylistPlaceholderLessons = (prefix, titlePrefix, description, count = 12, startNumber = 1) => (
+  Array.from({ length: count }, (_, index) => {
+    const lectureNumber = startNumber + index;
+
+    return ({
+    id: `${prefix}${index + 1}`,
+    title: `${titlePrefix} - Lecture ${String(lectureNumber).padStart(2, '0')}`,
+    videoId: PLAYLIST_PLACEHOLDER_VIDEO_ID,
+    duration: 'Playlist lesson',
+    description,
+    });
+  })
+);
 
 const DEFAULT_COURSE_CREATED_AT = '2026-04-02T00:00:00.000Z';
 
@@ -193,6 +209,25 @@ const SPOKEN_ARABIC_KICKSTART_LESSONS = cloneLessonSeries(
   'ak',
   'A beginner Arabic speaking lesson selected for day-one language confidence.',
   { limit: 6 },
+);
+const MADINAH_BOOK_1_URDU_LESSONS = createPlaylistPlaceholderLessons(
+  'mba1',
+  'Madinah Arabic Book 1 (Urdu)',
+  'A guided Urdu lesson from the Madinah Arabic Book 1 playlist focused on foundational Arabic vocabulary and sentence building.',
+  37,
+);
+const MADINAH_BOOK_2_URDU_LESSONS = createPlaylistPlaceholderLessons(
+  'mba2',
+  'Madinah Arabic Book 2 (Urdu)',
+  'A guided Urdu lesson from the Madinah Arabic Book 2 playlist focused on intermediate grammar, reading, and applied exercises.',
+  58,
+  38,
+);
+const MADINAH_BOOK_3_URDU_LESSONS = createPlaylistPlaceholderLessons(
+  'mba3',
+  'Madinah Arabic Book 3 (Urdu)',
+  'A guided Urdu lesson from the Madinah Arabic Book 3 playlist focused on advanced reading, grammar patterns, and text understanding.',
+  129,
 );
 
 const RAW_COURSES = [
@@ -460,6 +495,100 @@ const RAW_COURSES = [
     playlistId: 'PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
     playlistUrl: 'https://www.youtube.com/playlist?list=PLr_tqbGZylgY_ZGOgGO2KlCLknUPA8g4w',
     lessons: SPOKEN_ARABIC_KICKSTART_LESSONS,
+  },
+  {
+    id: 'madinah-arabic-series-urdu',
+    courseGroup: 'language',
+    subject: 'Arabic',
+    title: 'Madinah Arabic Series (Urdu)',
+    description: 'A complete free Madinah Arabic pathway in Urdu that brings together Book 1, Book 2, and Book 3 inside one guided series course card.',
+    thumbnail: 'https://images.unsplash.com/photo-1513258496099-48168024aec0?w=600&q=80',
+    instructor: 'Arabic Department',
+    level: 'Beginner → Intermediate',
+    duration: '224 playlist lessons',
+    totalLessons: MADINAH_BOOK_1_URDU_LESSONS.length + MADINAH_BOOK_2_URDU_LESSONS.length + MADINAH_BOOK_3_URDU_LESSONS.length,
+    category: 'Arabic Language Series',
+    requiresPayment: false,
+    freePreviewLessons: MADINAH_BOOK_1_URDU_LESSONS.length + MADINAH_BOOK_2_URDU_LESSONS.length + MADINAH_BOOK_3_URDU_LESSONS.length,
+    currency: 'PKR',
+    pricePKR: 0,
+    isSeries: true,
+    seriesCourseIds: [
+      'madinah-arabic-book-1-urdu',
+      'madinah-arabic-book-2-urdu',
+      'madinah-arabic-book-3-urdu',
+    ],
+    displayOrder: 300,
+    lessons: [],
+  },
+  {
+    id: 'madinah-arabic-book-1-urdu',
+    courseGroup: 'language',
+    subject: 'Arabic',
+    title: 'Madinah Arabic Book 1 (Urdu)',
+    description: 'A free Urdu-supported Arabic language course covering the first Madinah Arabic Book with beginner-friendly guided lessons and playlist-based study.',
+    thumbnail: 'https://images.unsplash.com/photo-1513258496099-48168024aec0?w=600&q=80',
+    instructor: 'Arabic Department',
+    level: 'Beginner',
+    duration: 'Playlist course',
+    totalLessons: MADINAH_BOOK_1_URDU_LESSONS.length,
+    category: 'Madinah Arabic Series',
+    displayOrder: 1,
+    hiddenFromCatalog: true,
+    parentSeriesId: 'madinah-arabic-series-urdu',
+    requiresPayment: false,
+    freePreviewLessons: MADINAH_BOOK_1_URDU_LESSONS.length,
+    currency: 'PKR',
+    pricePKR: 0,
+    playlistId: 'PL_MhST6sf6vx6HJNRwJMuKbYA8W_ONJJy',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PL_MhST6sf6vx6HJNRwJMuKbYA8W_ONJJy',
+    lessons: MADINAH_BOOK_1_URDU_LESSONS,
+  },
+  {
+    id: 'madinah-arabic-book-2-urdu',
+    courseGroup: 'language',
+    subject: 'Arabic',
+    title: 'Madinah Arabic Book 2 (Urdu)',
+    description: 'A free Urdu-supported continuation of the Madinah Arabic series covering Book 2 with structured grammar, reading, and comprehension lessons.',
+    thumbnail: 'https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?w=600&q=80',
+    instructor: 'Arabic Department',
+    level: 'Beginner → Intermediate',
+    duration: 'Playlist course',
+    totalLessons: MADINAH_BOOK_2_URDU_LESSONS.length,
+    category: 'Madinah Arabic Series',
+    displayOrder: 2,
+    hiddenFromCatalog: true,
+    parentSeriesId: 'madinah-arabic-series-urdu',
+    requiresPayment: false,
+    freePreviewLessons: MADINAH_BOOK_2_URDU_LESSONS.length,
+    currency: 'PKR',
+    pricePKR: 0,
+    playlistId: 'PL_MhST6sf6vzaApqn8IQZ-Bm-W-jbx6yx',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PL_MhST6sf6vzaApqn8IQZ-Bm-W-jbx6yx',
+    lessons: MADINAH_BOOK_2_URDU_LESSONS,
+  },
+  {
+    id: 'madinah-arabic-book-3-urdu',
+    courseGroup: 'language',
+    subject: 'Arabic',
+    title: 'Madinah Arabic Book 3 (Urdu)',
+    description: 'A free Urdu-supported advanced Madinah Arabic track covering Book 3 with deeper grammar, reading flow, and text-based language practice.',
+    thumbnail: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=600&q=80',
+    instructor: 'Arabic Department',
+    level: 'Intermediate',
+    duration: 'Playlist course',
+    totalLessons: MADINAH_BOOK_3_URDU_LESSONS.length,
+    category: 'Madinah Arabic Series',
+    displayOrder: 3,
+    hiddenFromCatalog: true,
+    parentSeriesId: 'madinah-arabic-series-urdu',
+    requiresPayment: false,
+    freePreviewLessons: MADINAH_BOOK_3_URDU_LESSONS.length,
+    currency: 'PKR',
+    pricePKR: 0,
+    playlistId: 'PL_MhST6sf6vzzcO77r1Pi9wLHAGthR3Od',
+    playlistUrl: 'https://www.youtube.com/playlist?list=PL_MhST6sf6vzzcO77r1Pi9wLHAGthR3Od',
+    lessons: MADINAH_BOOK_3_URDU_LESSONS,
   },
   {
     id: 'payment-test-duas-course',

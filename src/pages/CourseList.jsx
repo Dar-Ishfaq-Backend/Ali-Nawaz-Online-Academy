@@ -28,7 +28,12 @@ export default function CourseList() {
     [courses],
   );
 
-  const filtered = useMemo(() => courses.filter((course) => {
+  const visibleCourses = useMemo(
+    () => courses.filter((course) => !course.hiddenFromCatalog),
+    [courses],
+  );
+
+  const filtered = useMemo(() => visibleCourses.filter((course) => {
     const matchSearch = course.title?.toLowerCase().includes(search.toLowerCase())
       || course.description?.toLowerCase().includes(search.toLowerCase())
       || course.instructor?.toLowerCase().includes(search.toLowerCase());
@@ -37,7 +42,7 @@ export default function CourseList() {
       || (access === 'Free' && !course.is_paid);
     const matchInstructor = instructor === 'All' || course.instructor === instructor;
     return matchSearch && matchAccess && matchInstructor;
-  }), [access, courses, instructor, search]);
+  }), [access, instructor, search, visibleCourses]);
 
   const courseGroups = useMemo(() => ([
     {

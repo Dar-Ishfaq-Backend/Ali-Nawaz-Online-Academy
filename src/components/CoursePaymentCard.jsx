@@ -4,6 +4,7 @@ import { CreditCard, QrCode, ShieldCheck } from 'lucide-react';
 import { COURSE_PAYMENT_DETAILS } from '../utils/paymentConfig';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../supabase';
+import { compressScreenshot } from '../utils/compressScreenshot';
 
 const formatPKR = (amount) => `PKR ${new Intl.NumberFormat('en-PK').format(Math.max(0, Number(amount) || 0))}`;
 
@@ -79,11 +80,21 @@ export default function CoursePaymentCard({ course, onUnlock }) {
       return;
     }
 
-    const fileName = `${currentUser?.id || 'guest'}-${Date.now()}-${screenshot.name}`.replace(/\s+/g, '-');
+    let uploadFile = screenshot;
+
+    try {
+      uploadFile = await compressScreenshot(screenshot);
+    } catch (error) {
+      setSubmitting(false);
+      setFeedback({ type: 'error', text: error.message || 'The payment screenshot could not be compressed.' });
+      return;
+    }
+
+    const fileName = `${currentUser?.id || 'guest'}-${Date.now()}-${uploadFile.name}`.replace(/\s+/g, '-');
 
     const { error: uploadError } = await supabase.storage
       .from('payments')
-      .upload(fileName, screenshot, { upsert: false });
+      .upload(fileName, uploadFile, { upsert: false });
 
     if (uploadError) {
       setSubmitting(false);
@@ -174,6 +185,12 @@ export default function CoursePaymentCard({ course, onUnlock }) {
           className="w-full text-sm font-crimson text-cream/60"
           required
         />
+
+        {screenshot && (
+          <p className="text-xs font-crimson text-cream/35">
+            {screenshot.name} will be compressed automatically to roughly 100-150 KB before upload.
+          </p>
+        )}
 
         {feedback && (
           <p className={feedback.type === 'success' ? 'text-green-400 text-sm font-crimson' : 'text-red-400 text-sm font-crimson'}>

@@ -11,11 +11,16 @@ export default function CourseCard({ course, enrolled }) {
   const navigate = useNavigate();
   const { currentUser } = useApp();
   const progress = enrolled ? getCourseProgress(course) : 0;
+  const isSeriesCourse = Boolean(course.isSeries);
   const isPaidCourse = Boolean(course.is_paid);
   const coursePrice = Math.max(0, Number(course.price) || 0);
   const playlistUrl = course.youtube_playlist_url || course.playlistUrl || '';
 
-  const courseDurationLabel = playlistUrl ? 'YouTube playlist' : course.duration;
+  const courseDurationLabel = isSeriesCourse
+    ? `${course.seriesCourseIds?.length || 0} books`
+    : playlistUrl
+      ? 'YouTube playlist'
+      : course.duration;
 
   const handleOpenCourse = () => {
     if (!currentUser) {
@@ -30,7 +35,9 @@ export default function CourseCard({ course, enrolled }) {
     ? 'Continue Course'
     : isPaidCourse
       ? 'View Course'
-      : 'Start Free';
+      : isSeriesCourse
+        ? 'Open Series'
+        : 'Start Free';
 
   return (
     <div className="glass-card overflow-hidden flex flex-col group animate-slide-up">
@@ -51,7 +58,7 @@ export default function CourseCard({ course, enrolled }) {
         </div>
 
         <div className="absolute top-3 right-3">
-          <span className="badge badge-emerald text-[10px]">{playlistUrl ? 'YouTube' : 'Course'}</span>
+          <span className="badge badge-emerald text-[10px]">{isSeriesCourse ? 'Series' : playlistUrl ? 'YouTube' : 'Course'}</span>
         </div>
 
         <div className="absolute bottom-3 left-3">

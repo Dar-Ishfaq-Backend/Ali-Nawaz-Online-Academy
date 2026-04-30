@@ -63,8 +63,8 @@ function ProtectedShell() {
       <Navbar onToggleSidebar={() => setSidebarOpen((value) => !value)} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="pt-16 lg:pl-56 min-h-screen">
-        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+      <main className="pt-16 lg:pl-56 min-h-screen min-w-0 overflow-x-hidden">
+        <div className="w-full min-w-0 max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
           <Outlet />
         </div>
       </main>

@@ -25,6 +25,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color = '#f59e0b' }) => (
 
 export default function Dashboard() {
   const { enrollments, completedLessons, certificates, studentName, courses } = useApp();
+  const visibleCourses = courses.filter((course) => !course.hiddenFromCatalog);
 
   const enrolledCourses = courses.filter(c => enrollments[c.id]);
   const totalLessonsCompleted = Object.keys(completedLessons).length;
@@ -126,7 +127,7 @@ export default function Dashboard() {
             <>
               <h2 className="font-cinzel font-bold text-gold-400 text-lg mt-6">Recommended</h2>
               <div className="grid md:grid-cols-2 gap-4">
-                {courses.filter(c => !enrollments[c.id]).slice(0, 2).map(c => (
+                {visibleCourses.filter(c => !enrollments[c.id]).slice(0, 2).map(c => (
                   <CourseCard key={c.id} course={c} enrolled={false} />
                 ))}
               </div>
