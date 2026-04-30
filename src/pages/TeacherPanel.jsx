@@ -67,7 +67,7 @@ export default function TeacherPanel() {
     setFeedback(null);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const isPaid = Boolean(courseForm.is_paid);
@@ -78,8 +78,8 @@ export default function TeacherPanel() {
     };
 
     const result = editingCourseId
-      ? updateCourse(editingCourseId, payload)
-      : addCourse(payload);
+      ? await updateCourse(editingCourseId, payload)
+      : await addCourse(payload);
 
     if (!result.ok) {
       setFeedback({ type: 'error', text: result.message });
@@ -88,7 +88,7 @@ export default function TeacherPanel() {
 
     setFeedback({
       type: 'success',
-      text: editingCourseId ? 'Course updated successfully.' : 'Course added successfully.',
+      text: result.message || (editingCourseId ? 'Course updated successfully.' : 'Course added successfully.'),
     });
     setEditingCourseId(null);
     setCourseForm({

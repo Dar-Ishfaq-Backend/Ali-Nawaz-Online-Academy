@@ -324,7 +324,13 @@ const hydrateCourse = (course) => {
 const getCourseOverrides = () => getItem('platform_course_overrides', {});
 const setCourseOverrides = (overrides) => setItem('platform_course_overrides', overrides);
 const getCustomCourses = () => getItem('platform_custom_courses', []).map(hydrateCourse);
+export const getLocalCustomCourses = () => getCustomCourses();
 const setCustomCourses = (courses) => setItem('platform_custom_courses', courses.map(serializeCourse));
+const getSupabaseCourseCache = () => getItem('platform_supabase_courses_cache', []).map(hydrateCourse);
+export const setSupabaseCourseCache = (courses = []) => setItem(
+  'platform_supabase_courses_cache',
+  courses.map(serializeCourse),
+);
 const DEFAULT_PLATFORM_SETTINGS = {
   certificateSignature: '',
   certificateSettingsVersion: CERTIFICATE_SETTINGS_SCHEMA_VERSION,
@@ -353,7 +359,22 @@ export const getPlatformSettings = () => {
 export const getManagedCourses = () => {
   const overrides = getCourseOverrides();
   const baseCourses = BASE_COURSES.map((course) => hydrateCourse({ ...course, ...(overrides[course.id] || {}) }));
-  return [...baseCourses, ...getCustomCourses()];
+  const mergedCourses = new Map();
+
+  baseCourses.forEach((course) => mergedCourses.set(course.id, course));
+  getCustomCourses().forEach((course) => mergedCourses.set(course.id, course));
+  getSupabaseCourseCache().forEach((course) => mergedCourses.set(course.id, course));
+
+  return [...mergedCourses.values()].sort((a, b) => {
+    const aOrder = a.displayOrder ?? Number.POSITIVE_INFINITY;
+    const bOrder = b.displayOrder ?? Number.POSITIVE_INFINITY;
+
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+
+    return (a.title || '').localeCompare(b.title || '');
+  });
 };
 
 export const findManagedCourse = (courseId) => getManagedCourses().find((course) => course.id === courseId) || null;

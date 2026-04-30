@@ -3,6 +3,7 @@ import {
   STAFF_ACCESS_RULES,
   getSupabaseUser,
   isSupabaseEnabled,
+  getSupabaseSession,
   listSupabaseProfiles,
   registerWithSupabase,
   requestSupabasePasswordReset,
@@ -10,6 +11,11 @@ import {
   signOutSupabase,
   updateSupabasePassword,
 } from '../utils/supabaseAuth';
+import {
+  createSupabaseCourse,
+  listSupabaseCourses,
+  updateSupabaseCourse,
+} from '../utils/supabaseCourses';
 import {
   DEMO_ACCOUNTS,
   getAssignableRoles,
@@ -20,6 +26,7 @@ import {
   getEnrollments,
   getLessonWatchProgress,
   getLessonNotes,
+  getLocalCustomCourses,
   getManagedCourses,
   getManagedUsers,
   getPlatformSettings,
@@ -42,6 +49,7 @@ import {
   resetCourseProgress as storageResetCourseProgress,
   resetUserPassword as storageResetUserPassword,
   saveLessonNote,
+  setSupabaseCourseCache,
   setCurrentSessionUser,
   setStudentName,
   syncExternalUser,
@@ -91,6 +99,7 @@ export function AppProvider({ children }) {
   const supabaseEnabled = isSupabaseEnabled();
   const [state, setState] = useState(getSnapshot);
   const [remoteUsers, setRemoteUsers] = useState([]);
+  const [remoteCourses, setRemoteCourses] = useState([]);
   const [authReady, setAuthReady] = useState(!supabaseEnabled);
   const [passwordRecoveryReady, setPasswordRecoveryReady] = useState(false);
 
@@ -108,6 +117,45 @@ export function AppProvider({ children }) {
 
     if (result.ok) {
       setRemoteUsers(decorateUsersWithLocalStats(result.users));
+    }
+
+    return result;
+  }, [supabaseEnabled]);
+
+  const refreshSupabaseCourses = useCallback(async () => {
+    if (!supabaseEnabled) {
+      setSupabaseCourseCache([]);
+      setRemoteCourses([]);
+      return { ok: true, courses: [] };
+    }
+
+    const sessionResult = await getSupabaseSession();
+    if (!sessionResult.ok) {
+      return sessionResult;
+    }
+
+    let result = await listSupabaseCourses();
+
+    const actor = getCurrentUser();
+    const canSyncLocalCourses = actor && (actor.role === 'Admin' || actor.role === 'Super Admin');
+
+    if (result.ok && canSyncLocalCourses) {
+      const remoteCourseIds = new Set(result.courses.map((course) => course.id));
+      const localCustomCourses = getLocalCustomCourses().filter((course) => !remoteCourseIds.has(course.id));
+
+      if (localCustomCourses.length > 0) {
+        for (const localCourse of localCustomCourses) {
+          await createSupabaseCourse(localCourse);
+        }
+
+        result = await listSupabaseCourses();
+      }
+    }
+
+    if (result.ok) {
+      setSupabaseCourseCache(result.courses);
+      const mergedCourses = getSnapshot().courses;
+      setRemoteCourses(mergedCourses);
     }
 
     return result;
@@ -159,8 +207,11 @@ export function AppProvider({ children }) {
 
       if (result.ok) {
         await refreshSupabaseUsers();
+        await refreshSupabaseCourses();
       } else if (result.message === 'No active Supabase session was found.') {
         setRemoteUsers([]);
+        setSupabaseCourseCache([]);
+        setRemoteCourses([]);
       }
 
       refreshState();
@@ -172,7 +223,7 @@ export function AppProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [refreshState, refreshSupabaseUsers, supabaseEnabled, syncSupabaseSessionUser]);
+  }, [refreshState, refreshSupabaseCourses, refreshSupabaseUsers, supabaseEnabled, syncSupabaseSessionUser]);
 
   useEffect(() => {
     if (!supabaseEnabled || !authReady || !state.currentUser) {
@@ -182,6 +233,7 @@ export function AppProvider({ children }) {
     const syncOnFocus = () => {
       void syncSupabaseSessionUser();
       void refreshSupabaseUsers();
+      void refreshSupabaseCourses();
     };
 
     const handleVisibilityChange = () => {
@@ -197,7 +249,7 @@ export function AppProvider({ children }) {
       window.removeEventListener('focus', syncOnFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [authReady, refreshSupabaseUsers, state.currentUser?.id, supabaseEnabled, syncSupabaseSessionUser]);
+  }, [authReady, refreshSupabaseCourses, refreshSupabaseUsers, state.currentUser?.id, supabaseEnabled, syncSupabaseSessionUser]);
 
   const login = useCallback(async (email, password) => {
     if (supabaseEnabled) {
@@ -212,6 +264,7 @@ export function AppProvider({ children }) {
       setPasswordRecoveryReady(false);
       refreshState();
       await refreshSupabaseUsers();
+      await refreshSupabaseCourses();
       return { ok: true, user: mirroredUser };
     }
 
@@ -234,11 +287,13 @@ export function AppProvider({ children }) {
         setPasswordRecoveryReady(false);
         refreshState();
         await refreshSupabaseUsers();
+        await refreshSupabaseCourses();
         return { ...supabaseResult, user: mirroredUser };
       }
 
       refreshState();
       await refreshSupabaseUsers();
+      await refreshSupabaseCourses();
       return supabaseResult;
     }
 
@@ -280,6 +335,8 @@ export function AppProvider({ children }) {
     storageLogoutUser();
     setPasswordRecoveryReady(false);
     setRemoteUsers([]);
+    setSupabaseCourseCache([]);
+    setRemoteCourses([]);
     refreshState();
   }, [refreshState, supabaseEnabled]);
 
@@ -357,17 +414,35 @@ export function AppProvider({ children }) {
     return result;
   }, [refreshState]);
 
-  const addCourse = useCallback((payload) => {
+  const addCourse = useCallback(async (payload) => {
+    if (supabaseEnabled) {
+      const result = await createSupabaseCourse(payload);
+      if (result.ok) {
+        await refreshSupabaseCourses();
+        refreshState();
+      }
+      return result;
+    }
+
     const result = createManagedCourse(payload);
     if (result.ok) refreshState();
     return result;
-  }, [refreshState]);
+  }, [refreshState, refreshSupabaseCourses, supabaseEnabled]);
 
-  const updateCourse = useCallback((courseId, updates) => {
+  const updateCourse = useCallback(async (courseId, updates) => {
+    if (supabaseEnabled) {
+      const result = await updateSupabaseCourse(courseId, updates);
+      if (result.ok) {
+        await refreshSupabaseCourses();
+        refreshState();
+      }
+      return result;
+    }
+
     const result = editManagedCourse(courseId, updates);
     if (result.ok) refreshState();
     return result;
-  }, [refreshState]);
+  }, [refreshState, refreshSupabaseCourses, supabaseEnabled]);
 
   const savePlatformSettings = useCallback((updates) => {
     const result = storageUpdatePlatformSettings(updates);
@@ -379,6 +454,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       ...state,
       users: supabaseEnabled ? remoteUsers : state.users,
+      courses: supabaseEnabled && remoteCourses.length ? remoteCourses : state.courses,
       authReady,
       isSupabaseEnabled: supabaseEnabled,
       passwordRecoveryReady,
@@ -408,6 +484,7 @@ export function AppProvider({ children }) {
       savePlatformSettings,
       refreshState,
       refreshUsers: refreshSupabaseUsers,
+      refreshCourses: refreshSupabaseCourses,
     }}>
       {children}
     </AppContext.Provider>
