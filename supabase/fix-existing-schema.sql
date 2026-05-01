@@ -52,12 +52,30 @@ add column if not exists youtube_url text,
 add column if not exists position integer,
 add column if not exists created_at timestamptz default now();
 
-update public.profiles
-set
-  name = coalesce(nullif(name, ''), nullif(full_name, ''), split_part(email, '@', 1), 'Student'),
-  email = coalesce(email, ''),
-  role = coalesce(role, 'Student'),
-  created_at = coalesce(created_at, now());
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'full_name'
+  ) then
+    update public.profiles
+    set
+      name = coalesce(nullif(name, ''), nullif(full_name, ''), split_part(email, '@', 1), 'Student'),
+      email = coalesce(email, ''),
+      role = coalesce(role, 'Student'),
+      created_at = coalesce(created_at, now());
+  else
+    update public.profiles
+    set
+      name = coalesce(nullif(name, ''), split_part(email, '@', 1), 'Student'),
+      email = coalesce(email, ''),
+      role = coalesce(role, 'Student'),
+      created_at = coalesce(created_at, now());
+  end if;
+end $$;
 
 alter table if exists public.courses
 alter column id type text using id::text;
