@@ -20,6 +20,15 @@ create table if not exists public.courses (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.course_videos (
+  id uuid primary key default gen_random_uuid(),
+  course_id text not null,
+  title text not null default '',
+  youtube_url text not null default '',
+  position integer not null default 1,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.enrollments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -70,6 +79,7 @@ create table if not exists public.issues (
 
 alter table public.profiles enable row level security;
 alter table public.courses enable row level security;
+alter table public.course_videos enable row level security;
 alter table public.enrollments enable row level security;
 alter table public.payments enable row level security;
 alter table public.certificates enable row level security;
@@ -145,6 +155,21 @@ using (true);
 drop policy if exists "Admins manage courses" on public.courses;
 create policy "Admins manage courses"
 on public.courses
+for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "Course videos are visible to authenticated users" on public.course_videos;
+create policy "Course videos are visible to authenticated users"
+on public.course_videos
+for select
+to authenticated
+using (true);
+
+drop policy if exists "Admins manage course videos" on public.course_videos;
+create policy "Admins manage course videos"
+on public.course_videos
 for all
 to authenticated
 using (public.is_admin())

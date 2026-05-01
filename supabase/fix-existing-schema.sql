@@ -36,6 +36,22 @@ add column if not exists thumbnail text,
 add column if not exists instructor text,
 add column if not exists created_at timestamptz default now();
 
+create table if not exists public.course_videos (
+  id uuid primary key default gen_random_uuid(),
+  course_id text not null,
+  title text not null default '',
+  youtube_url text not null default '',
+  position integer not null default 1,
+  created_at timestamptz not null default now()
+);
+
+alter table if exists public.course_videos
+add column if not exists course_id text,
+add column if not exists title text,
+add column if not exists youtube_url text,
+add column if not exists position integer,
+add column if not exists created_at timestamptz default now();
+
 update public.profiles
 set
   name = coalesce(nullif(name, ''), nullif(full_name, ''), split_part(email, '@', 1), 'Student'),
@@ -50,6 +66,9 @@ alter table if exists public.payments
 alter column course_id type text using course_id::text;
 
 alter table if exists public.enrollments
+alter column course_id type text using course_id::text;
+
+alter table if exists public.course_videos
 alter column course_id type text using course_id::text;
 
 alter table if exists public.payments
@@ -77,6 +96,12 @@ alter column is_paid set default false,
 alter column youtube_playlist_url set default '',
 alter column thumbnail set default '',
 alter column instructor set default '',
+alter column created_at set default now();
+
+alter table if exists public.course_videos
+alter column title type text using coalesce(title, ''),
+alter column youtube_url type text using coalesce(youtube_url, ''),
+alter column position type integer using coalesce(position, 1)::integer,
 alter column created_at set default now();
 
 alter table if exists public.enrollments
@@ -122,6 +147,13 @@ alter column is_paid set not null,
 alter column youtube_playlist_url set not null,
 alter column thumbnail set not null,
 alter column instructor set not null,
+alter column created_at set not null;
+
+alter table if exists public.course_videos
+alter column course_id set not null,
+alter column title set not null,
+alter column youtube_url set not null,
+alter column position set not null,
 alter column created_at set not null;
 
 create table if not exists public.certificates (
@@ -278,6 +310,38 @@ $$;
 
 alter table if exists public.certificates enable row level security;
 alter table if exists public.issues enable row level security;
+alter table if exists public.courses enable row level security;
+alter table if exists public.course_videos enable row level security;
+
+drop policy if exists "Courses are visible to authenticated users" on public.courses;
+create policy "Courses are visible to authenticated users"
+on public.courses
+for select
+to authenticated
+using (true);
+
+drop policy if exists "Admins manage courses" on public.courses;
+create policy "Admins manage courses"
+on public.courses
+for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "Course videos are visible to authenticated users" on public.course_videos;
+create policy "Course videos are visible to authenticated users"
+on public.course_videos
+for select
+to authenticated
+using (true);
+
+drop policy if exists "Admins manage course videos" on public.course_videos;
+create policy "Admins manage course videos"
+on public.course_videos
+for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
 
 drop policy if exists "Certificates are publicly verifiable" on public.certificates;
 create policy "Certificates are publicly verifiable"

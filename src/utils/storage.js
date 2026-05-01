@@ -249,6 +249,26 @@ const buildLessons = ({ title, totalLessons, playlistUrl, existingLessons = [] }
   return lessons;
 };
 
+const buildManualVideoLessons = ({ title, courseId, videos = [] }) => (
+  videos
+    .map((video, index) => {
+      const videoTitle = (video.title || video.name || '').trim();
+      const videoUrl = (video.url || video.youtube_url || '').trim();
+      const videoId = extractVideoId(videoUrl);
+
+      if (!videoTitle || videoId === DEFAULT_VIDEO_ID) return null;
+
+      return {
+        id: `${slugify(courseId || title || 'course')}-video-${index + 1}`,
+        title: videoTitle,
+        videoId,
+        duration: 'YouTube video',
+        description: `Video ${index + 1} for ${title || 'this course'}.`,
+      };
+    })
+    .filter(Boolean)
+);
+
 const serializeCourse = (course) => {
   const hydrated = hydrateCourse(course);
 
@@ -1185,9 +1205,15 @@ export const createManagedCourse = (payload) => {
   const isPaid = typeof payload.is_paid === 'boolean'
     ? payload.is_paid
     : Boolean(payload.requiresPayment ?? price > 0);
+  const courseId = `${slugify(title)}-${Date.now().toString(36)}`;
+  const manualLessons = buildManualVideoLessons({
+    title,
+    courseId,
+    videos: Array.isArray(payload.videos) ? payload.videos : [],
+  });
 
   const course = hydrateCourse({
-    id: `${slugify(title)}-${Date.now().toString(36)}`,
+    id: courseId,
     title,
     instructor: payload.instructor?.trim() || actor.name,
     description: payload.description?.trim() || 'New course draft.',
@@ -1197,7 +1223,7 @@ export const createManagedCourse = (payload) => {
     thumbnail: payload.thumbnail?.trim() || DEFAULT_THUMBNAIL,
     created_at: new Date().toISOString(),
     freePreviewLessons: payload.freePreviewLessons,
-    lessons: Array.isArray(payload.lessons) ? payload.lessons : [],
+    lessons: manualLessons.length > 0 ? manualLessons : Array.isArray(payload.lessons) ? payload.lessons : [],
     createdBy: actor.id,
     isCustom: true,
   });
@@ -1217,6 +1243,12 @@ export const editManagedCourse = (courseId, updates) => {
     return { ok: false, message: 'Course not found.' };
   }
 
+  const manualLessons = buildManualVideoLessons({
+    title: updates.title?.trim() || existing.title,
+    courseId,
+    videos: Array.isArray(updates.videos) ? updates.videos : [],
+  });
+
   const nextCourse = hydrateCourse({
     ...existing,
     title: updates.title?.trim() || existing.title,
@@ -1228,12 +1260,14 @@ export const editManagedCourse = (courseId, updates) => {
     thumbnail: updates.thumbnail?.trim() || existing.thumbnail,
     created_at: existing.created_at,
     freePreviewLessons: updates.freePreviewLessons ?? existing.freePreviewLessons,
-    lessons: buildLessons({
-      title: updates.title?.trim() || existing.title,
-      totalLessons: normalizeTotalLessons(updates.totalLessons, existing.totalLessons),
-      playlistUrl: updates.youtube_playlist_url || updates.playlistUrl || existing.youtube_playlist_url,
-      existingLessons: existing.lessons,
-    }),
+    lessons: manualLessons.length > 0
+      ? manualLessons
+      : buildLessons({
+        title: updates.title?.trim() || existing.title,
+        totalLessons: normalizeTotalLessons(updates.totalLessons, existing.totalLessons),
+        playlistUrl: updates.youtube_playlist_url || updates.playlistUrl || existing.youtube_playlist_url,
+        existingLessons: existing.lessons,
+      }),
   });
 
   if (existing.isCustom) {

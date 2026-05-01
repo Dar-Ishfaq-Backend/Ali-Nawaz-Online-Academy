@@ -14,6 +14,37 @@ const sanitizeTitle = (value = '') => value
   .replace(/&amp;/g, '&')
   .trim();
 
+export const extractYouTubeVideoId = (value = '') => {
+  if (!value) return '';
+
+  try {
+    const parsed = new URL(value);
+    const watchId = parsed.searchParams.get('v');
+    if (watchId) return watchId;
+
+    const shortMatch = parsed.hostname.includes('youtu.be')
+      ? parsed.pathname.replace(/^\/+/, '').split('/')[0]
+      : '';
+    if (shortMatch) return shortMatch;
+
+    const embedMatch = parsed.pathname.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
+    if (embedMatch) return embedMatch[1];
+  } catch {
+    // Fall back to regex parsing below.
+  }
+
+  const watchMatch = value.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (watchMatch) return watchMatch[1];
+
+  const shortMatch = value.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (shortMatch) return shortMatch[1];
+
+  const embedMatch = value.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
+  if (embedMatch) return embedMatch[1];
+
+  return '';
+};
+
 export const extractPlaylistId = (playlistUrl = '') => {
   if (!playlistUrl) return '';
 
@@ -69,6 +100,26 @@ const buildPlaceholderLessons = ({ courseId, courseTitle, count = DEFAULT_PLACEH
     duration: 'Playlist lesson',
     description: `Lesson ${index + 1} from the ${courseTitle || 'playlist'} series.`,
   }))
+);
+
+export const buildManualVideoLessons = ({ videos = [], courseId, courseTitle }) => (
+  videos
+    .map((video, index) => {
+      const title = sanitizeTitle(video.title || video.name || '');
+      const url = (video.url || video.youtube_url || '').trim();
+      const videoId = extractYouTubeVideoId(url);
+
+      if (!title || !videoId) return null;
+
+      return {
+        id: `${slugify(courseId || courseTitle || 'course')}-video-${index + 1}`,
+        title,
+        videoId,
+        duration: video.duration || 'YouTube video',
+        description: `Video ${index + 1} from ${courseTitle || 'this course'}.`,
+      };
+    })
+    .filter(Boolean)
 );
 
 const parsePlaylistFeed = async (playlistId, courseId, courseTitle) => {

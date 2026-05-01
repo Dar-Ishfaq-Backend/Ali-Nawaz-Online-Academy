@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Edit2, BookOpen, Users, Eye, PencilLine } from 'lucide-react';
+import { PlusCircle, Edit2, BookOpen, Users, Eye, PencilLine, Image, Video, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ProgressBar from '../components/ProgressBar';
+import { extractYouTubeVideoId } from '../utils/playlistCourses';
+
+const EMPTY_VIDEO = {
+  title: '',
+  url: '',
+};
 
 const EMPTY_FORM = {
   title: '',
@@ -12,6 +18,7 @@ const EMPTY_FORM = {
   thumbnail: '',
   price: '0',
   is_paid: true,
+  videos: [],
 };
 
 export default function TeacherPanel() {
@@ -21,6 +28,7 @@ export default function TeacherPanel() {
   const [courseForm, setCourseForm] = useState(EMPTY_FORM);
   const [editingCourseId, setEditingCourseId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (role === 'Student') {
     return (
@@ -53,6 +61,18 @@ export default function TeacherPanel() {
   };
 
   const startEditCourse = (course) => {
+    const editableVideos = Array.isArray(course.courseVideos) && course.courseVideos.length > 0
+      ? course.courseVideos.map((video) => ({
+        title: video.title || '',
+        url: video.youtube_url || '',
+      }))
+      : !course.youtube_playlist_url && Array.isArray(course.lessons)
+        ? course.lessons.map((lesson) => ({
+          title: lesson.title || '',
+          url: lesson.videoId ? `https://www.youtube.com/watch?v=${lesson.videoId}` : '',
+        }))
+        : [];
+
     setEditingCourseId(course.id);
     setCourseForm({
       title: course.title,
@@ -62,6 +82,7 @@ export default function TeacherPanel() {
       thumbnail: course.thumbnail || '',
       price: String(course.price ?? 0),
       is_paid: Boolean(course.is_paid),
+      videos: editableVideos,
     });
     setTab('add');
     setFeedback(null);
@@ -71,15 +92,45 @@ export default function TeacherPanel() {
     e.preventDefault();
 
     const isPaid = Boolean(courseForm.is_paid);
+    const videos = courseForm.videos
+      .map((video) => ({
+        title: video.title.trim(),
+        url: video.url.trim(),
+      }))
+      .filter((video) => video.title || video.url);
+
+    if (!editingCourseId && videos.length === 0) {
+      setFeedback({ type: 'error', text: 'Please add at least one YouTube video for the new course.' });
+      return;
+    }
+
+    if (videos.some((video) => !video.title || !video.url)) {
+      setFeedback({ type: 'error', text: 'Each video needs both a video name and a YouTube URL.' });
+      return;
+    }
+
+    if (videos.some((video) => !extractYouTubeVideoId(video.url))) {
+      setFeedback({ type: 'error', text: 'Please enter valid YouTube video URLs before saving the course.' });
+      return;
+    }
+
     const payload = {
       ...courseForm,
       price: isPaid ? (Number.parseInt(courseForm.price, 10) || 0) : 0,
       is_paid: isPaid,
+      videos,
     };
 
-    const result = editingCourseId
-      ? await updateCourse(editingCourseId, payload)
-      : await addCourse(payload);
+    let result;
+    setSubmitting(true);
+
+    try {
+      result = editingCourseId
+        ? await updateCourse(editingCourseId, payload)
+        : await addCourse(payload);
+    } finally {
+      setSubmitting(false);
+    }
 
     if (!result.ok) {
       setFeedback({ type: 'error', text: result.message });
@@ -102,11 +153,34 @@ export default function TeacherPanel() {
     setCourseForm((current) => ({ ...current, [key]: value }));
   };
 
+  const handleVideoChange = (index, key, value) => {
+    setCourseForm((current) => ({
+      ...current,
+      videos: current.videos.map((video, videoIndex) => (
+        videoIndex === index ? { ...video, [key]: value } : video
+      )),
+    }));
+  };
+
+  const addVideoRow = () => {
+    setCourseForm((current) => ({
+      ...current,
+      videos: [...current.videos, { ...EMPTY_VIDEO }],
+    }));
+  };
+
+  const removeVideoRow = (index) => {
+    setCourseForm((current) => ({
+      ...current,
+      videos: current.videos.filter((_, videoIndex) => videoIndex !== index),
+    }));
+  };
+
   return (
     <div className="animate-fade-in space-y-6">
       <div>
-        <h1 className="font-cinzel font-black text-2xl md:text-3xl text-gold-400 mb-1">Teacher Panel</h1>
-        <p className="text-cream/50 font-crimson">Manage courses and review learner activity</p>
+        <h1 className="font-cinzel font-black text-2xl md:text-3xl text-gold-400 mb-1">Course Management</h1>
+        <p className="text-cream/50 font-crimson">Create courses, add videos, and review learner activity</p>
       </div>
 
       {feedback && (
@@ -282,22 +356,54 @@ export default function TeacherPanel() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="glass-card p-6 space-y-4">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">COURSE TITLE</label>
-                <input
-                  value={courseForm.title}
-                  onChange={(e) => handleFieldChange('title', e.target.value)}
-                  placeholder="e.g. Advanced Fiqh — Muamalat"
-                  required
-                  className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
-                  style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="glass-card p-6 space-y-5">
+            <div>
+              <label className="flex items-center gap-2 text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">
+                <Image size={13} />
+                THUMBNAIL URL
+              </label>
+              <input
+                value={courseForm.thumbnail}
+                onChange={(e) => handleFieldChange('thumbnail', e.target.value)}
+                placeholder="https://example.com/course-cover.jpg"
+                className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
+                style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
+              />
+              {courseForm.thumbnail && (
+                <div className="mt-3 h-36 rounded-lg overflow-hidden" style={{ border: '1px solid rgba(245,158,11,0.14)' }}>
+                  <img src={courseForm.thumbnail} alt="Course thumbnail preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
 
+            <div>
+              <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">COURSE NAME</label>
+              <input
+                value={courseForm.title}
+                onChange={(e) => handleFieldChange('title', e.target.value)}
+                placeholder="e.g. Advanced Fiqh - Muamalat"
+                required
+                className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
+                style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">COURSE DESCRIPTION</label>
+              <textarea
+                value={courseForm.description}
+                onChange={(e) => handleFieldChange('description', e.target.value)}
+                placeholder="Brief description of the course..."
+                rows={4}
+                required
+                className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream resize-none outline-none"
+                style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">INSTRUCTOR NAME</label>
+                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">INSTRUCTOR</label>
                 <input
                   value={courseForm.instructor}
                   onChange={(e) => handleFieldChange('instructor', e.target.value)}
@@ -307,33 +413,7 @@ export default function TeacherPanel() {
                   style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
                 />
               </div>
-            </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">YOUTUBE URL</label>
-                <input
-                  value={courseForm.youtube_playlist_url}
-                  onChange={(e) => handleFieldChange('youtube_playlist_url', e.target.value)}
-                  placeholder="https://www.youtube.com/playlist?list=..."
-                  className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
-                  style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">THUMBNAIL URL</label>
-                <input
-                  value={courseForm.thumbnail}
-                  onChange={(e) => handleFieldChange('thumbnail', e.target.value)}
-                  placeholder="https://example.com/course-cover.jpg"
-                  className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
-                  style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
-                />
-              </div>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">PRICE (PKR)</label>
                 <input
@@ -361,22 +441,73 @@ export default function TeacherPanel() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-cinzel text-gold-500/60 tracking-wider mb-1.5">DESCRIPTION</label>
-              <textarea
-                value={courseForm.description}
-                onChange={(e) => handleFieldChange('description', e.target.value)}
-                placeholder="Brief description of the course..."
-                rows={4}
-                required
-                className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream resize-none outline-none"
-                style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.2)' }}
-              />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-xs font-cinzel text-gold-500/60 tracking-wider">
+                  <Video size={13} />
+                  COURSE VIDEOS
+                </label>
+                <span className="text-[11px] font-crimson text-cream/35">{courseForm.videos.length} added</span>
+              </div>
+
+              {courseForm.videos.map((video, index) => (
+                <div
+                  key={`course-video-${index}`}
+                  className="rounded-lg p-3 space-y-3"
+                  style={{ background: 'rgba(6,78,59,0.16)', border: '1px solid rgba(245,158,11,0.16)' }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-cinzel text-xs text-gold-400">Video {index + 1}</p>
+                    <button
+                      type="button"
+                      onClick={() => removeVideoRow(index)}
+                      className="p-1.5 rounded text-red-200 hover:text-red-100 hover:bg-red-900/20 transition-colors"
+                      aria-label={`Remove video ${index + 1}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-cinzel text-gold-500/50 tracking-wider mb-1.5">VIDEO NAME</label>
+                      <input
+                        value={video.title}
+                        onChange={(e) => handleVideoChange(index, 'title', e.target.value)}
+                        placeholder="e.g. Lesson 1 - Introduction"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
+                        style={{ background: 'rgba(2,15,10,0.28)', border: '1px solid rgba(245,158,11,0.14)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-cinzel text-gold-500/50 tracking-wider mb-1.5">YOUTUBE URL</label>
+                      <input
+                        value={video.url}
+                        onChange={(e) => handleVideoChange(index, 'url', e.target.value)}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="w-full px-3 py-2.5 rounded-lg text-sm font-crimson text-cream outline-none"
+                        style={{ background: 'rgba(2,15,10,0.28)', border: '1px solid rgba(245,158,11,0.14)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addVideoRow}
+                className="w-full rounded-lg py-3 flex items-center justify-center gap-2 text-sm font-cinzel font-bold text-gold-300 hover:text-gold-200 transition-colors"
+                style={{ background: 'rgba(6,78,59,0.2)', border: '1px dashed rgba(245,158,11,0.45)' }}
+              >
+                <PlusCircle size={16} />
+                Add Video
+              </button>
             </div>
 
-            <button type="submit" className="btn-gold w-full py-3 flex items-center justify-center gap-2">
+            <button type="submit" disabled={submitting} className="btn-gold w-full py-3 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {editingCourseId ? <PencilLine size={16} /> : <PlusCircle size={16} />}
-              {editingCourseId ? 'Save Course Changes' : 'Add Course'}
+              {submitting ? 'Saving Course...' : editingCourseId ? 'Save Course Changes' : 'Add Course'}
             </button>
           </form>
         </div>

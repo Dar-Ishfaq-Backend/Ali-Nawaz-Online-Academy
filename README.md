@@ -107,6 +107,15 @@ This project is built around the following table structure and must stay aligned
 - `instructor` text
 - `created_at` timestamp
 
+### `course_videos`
+
+- `id` uuid primary key
+- `course_id` text
+- `title` text
+- `youtube_url` text
+- `position` int
+- `created_at` timestamp
+
 ### `enrollments`
 
 - `id` uuid primary key
@@ -136,6 +145,7 @@ This project is built around the following table structure and must stay aligned
 - Course IDs are slug strings like `mini-wudu-course`
 - Do not use a foreign key for `payments.course_id`
 - Do not use a foreign key for `enrollments.course_id`
+- `course_videos.course_id` is text and stores manually added course videos
 - `payments.amount` must be `integer`
 - `payments.transaction_id` must be `text`
 - `payments.payment_reference` must be `text`
