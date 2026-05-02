@@ -14,9 +14,9 @@ create table if not exists public.courses (
   description text not null default '',
   price integer not null default 0,
   is_paid boolean not null default false,
-  youtube_playlist_url text not null default '',
-  thumbnail text not null default '',
-  instructor text not null default '',
+  youtube_playlist_url text default '',
+  thumbnail text default '',
+  instructor text default '',
   created_at timestamptz not null default now()
 );
 

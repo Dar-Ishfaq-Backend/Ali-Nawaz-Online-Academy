@@ -36,6 +36,12 @@ add column if not exists thumbnail text,
 add column if not exists instructor text,
 add column if not exists created_at timestamptz default now();
 
+alter table if exists public.courses
+alter column description drop not null,
+alter column youtube_playlist_url drop not null,
+alter column thumbnail drop not null,
+alter column instructor drop not null;
+
 create table if not exists public.course_videos (
   id uuid primary key default gen_random_uuid(),
   course_id text not null,
@@ -52,30 +58,12 @@ add column if not exists youtube_url text,
 add column if not exists position integer,
 add column if not exists created_at timestamptz default now();
 
-do $$
-begin
-  if exists (
-    select 1
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'profiles'
-      and column_name = 'full_name'
-  ) then
-    update public.profiles
-    set
-      name = coalesce(nullif(name, ''), nullif(full_name, ''), split_part(email, '@', 1), 'Student'),
-      email = coalesce(email, ''),
-      role = coalesce(role, 'Student'),
-      created_at = coalesce(created_at, now());
-  else
-    update public.profiles
-    set
-      name = coalesce(nullif(name, ''), split_part(email, '@', 1), 'Student'),
-      email = coalesce(email, ''),
-      role = coalesce(role, 'Student'),
-      created_at = coalesce(created_at, now());
-  end if;
-end $$;
+update public.profiles
+set
+  name = coalesce(nullif(name, ''), split_part(email, '@', 1), 'Student'),
+  email = coalesce(email, ''),
+  role = coalesce(role, 'Student'),
+  created_at = coalesce(created_at, now());
 
 alter table if exists public.courses
 alter column id type text using id::text;
@@ -115,6 +103,17 @@ alter column youtube_playlist_url set default '',
 alter column thumbnail set default '',
 alter column instructor set default '',
 alter column created_at set default now();
+
+update public.courses
+set
+  title = coalesce(title, ''),
+  description = coalesce(description, ''),
+  price = coalesce(price, 0),
+  is_paid = coalesce(is_paid, false),
+  youtube_playlist_url = coalesce(youtube_playlist_url, ''),
+  thumbnail = coalesce(thumbnail, ''),
+  instructor = coalesce(instructor, ''),
+  created_at = coalesce(created_at, now());
 
 alter table if exists public.course_videos
 alter column title type text using coalesce(title, ''),
@@ -159,12 +158,8 @@ alter column created_at set not null;
 alter table if exists public.courses
 alter column id set not null,
 alter column title set not null,
-alter column description set not null,
 alter column price set not null,
 alter column is_paid set not null,
-alter column youtube_playlist_url set not null,
-alter column thumbnail set not null,
-alter column instructor set not null,
 alter column created_at set not null;
 
 alter table if exists public.course_videos
@@ -195,6 +190,11 @@ create table if not exists public.issues (
   assigned_to text not null default 'admin',
   created_at timestamptz not null default now()
 );
+
+drop policy if exists "Students view their own issues" on public.issues;
+drop policy if exists "Students create their own issues" on public.issues;
+drop policy if exists "Admins update assigned issues" on public.issues;
+drop policy if exists "Super admins update escalated issues" on public.issues;
 
 alter table if exists public.certificates
 add column if not exists user_id uuid,
