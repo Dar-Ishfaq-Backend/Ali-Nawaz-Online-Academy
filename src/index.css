@@ -4,18 +4,18 @@
 
 /* ── CSS Variables ── */
 :root {
-  --bg-primary: #020f0a;
-  --bg-secondary: #051a0f;
-  --bg-card: rgba(5, 26, 15, 0.85);
-  --bg-card-hover: rgba(6, 78, 59, 0.3);
-  --border-gold: rgba(245, 158, 11, 0.3);
-  --border-emerald: rgba(16, 185, 129, 0.2);
-  --text-gold: #f59e0b;
-  --text-gold-light: #fbbf24;
-  --text-cream: #fef9ef;
-  --text-muted: #6ee7b7;
-  --shadow-gold: 0 0 20px rgba(245, 158, 11, 0.15);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --bg-primary: #0A1628;
+  --bg-secondary: #060E1A;
+  --bg-card: rgba(15, 30, 53, 0.82);
+  --bg-card-hover: rgba(28, 46, 74, 0.65);
+  --border-gold: rgba(212, 168, 83, 0.26);
+  --border-emerald: rgba(27, 107, 74, 0.32);
+  --text-gold: #D4A853;
+  --text-gold-light: #E8C070;
+  --text-cream: #E8DCC8;
+  --text-muted: #8B9BB4;
+  --shadow-gold: 0 0 20px rgba(212, 168, 83, 0.15);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.28);
 }
 
 /* ── Base Styles ── */
@@ -26,9 +26,9 @@ html { scroll-behavior: smooth; }
 body {
   background-color: var(--bg-primary);
   color: var(--text-cream);
-  font-family: 'Crimson Pro', serif;
-  font-size: 17px;
-  line-height: 1.7;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -37,91 +37,94 @@ body {
 .geometric-bg {
   background-color: var(--bg-primary);
   background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(6, 78, 59, 0.15) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 20%, rgba(245, 158, 11, 0.05) 0%, transparent 50%),
-    url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23065f46' fill-opacity='0.06'%3E%3Cpath d='M40 0L0 40l40 40 40-40L40 0zm0 8.5L71.5 40 40 71.5 8.5 40 40 8.5z'/%3E%3Cpath d='M40 20L20 40l20 20 20-20L40 20zm0 5.9L54.1 40 40 54.1 25.9 40 40 25.9z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    linear-gradient(180deg, rgba(10, 22, 40, 0.96), rgba(6, 14, 26, 0.98)),
+    radial-gradient(ellipse at 22% 12%, rgba(27, 107, 74, 0.24) 0%, transparent 42%),
+    radial-gradient(ellipse at 86% 4%, rgba(212, 168, 83, 0.09) 0%, transparent 36%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23D4A853' fill-opacity='0.035'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-attachment: fixed;
 }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-secondary); }
-::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.4); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.7); }
+::-webkit-scrollbar-thumb { background: #1C2E4A; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-gold); }
 
 /* ── Typography ── */
 .font-cinzel { font-family: 'Cinzel', serif; }
 .font-amiri { font-family: 'Amiri', serif; }
 .font-cormorant { font-family: 'Cormorant Garamond', serif; }
+.font-crimson { font-family: 'Nunito', system-ui, sans-serif; }
 
 /* ── Glass Card ── */
 .glass-card {
   background: var(--bg-card);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--border-gold);
-  border-radius: 12px;
+  border: 1px solid #1C2E4A;
+  border-radius: 16px;
   box-shadow: var(--shadow-card);
   transition: all 0.3s ease;
 }
-.glass-card:hover { border-color: rgba(245, 158, 11, 0.5); box-shadow: var(--shadow-gold), var(--shadow-card); }
+.glass-card:hover { border-color: rgba(212, 168, 83, 0.38); box-shadow: var(--shadow-gold), var(--shadow-card); }
 
 /* ── Gold Button ── */
 .btn-gold {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
-  color: #020f0a;
-  font-family: 'Cinzel', serif;
-  font-weight: 600;
+  background: linear-gradient(135deg, #D4A853, #E8C070);
+  color: #0A1628;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 800;
   font-size: 0.875rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   padding: 0.625rem 1.5rem;
-  border-radius: 8px;
+  border-radius: 12px;
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 20px rgba(212, 168, 83, 0.15);
 }
 .btn-gold:hover {
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+  background: linear-gradient(135deg, #E8C070, #D4A853);
+  box-shadow: 0 0 40px rgba(212, 168, 83, 0.2);
   transform: translateY(-1px);
 }
 .btn-gold:active { transform: translateY(0); }
 
 /* ── Emerald Button ── */
 .btn-emerald {
-  background: linear-gradient(135deg, #065f46, #059669);
-  color: #fef9ef;
-  font-family: 'Cinzel', serif;
+  background: linear-gradient(135deg, #1B6B4A, #2A8B62);
+  color: #E8DCC8;
+  font-family: 'Nunito', system-ui, sans-serif;
   font-weight: 600;
   font-size: 0.875rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   padding: 0.625rem 1.5rem;
-  border-radius: 8px;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(42, 139, 98, 0.35);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 .btn-emerald:hover {
-  background: linear-gradient(135deg, #059669, #10b981);
+  background: linear-gradient(135deg, #2A8B62, #1B6B4A);
   transform: translateY(-1px);
 }
 
 /* ── Gold Divider ── */
 .gold-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.6), transparent);
+  background: linear-gradient(90deg, transparent, rgba(212, 168, 83, 0.65), transparent);
   margin: 1rem 0;
 }
 
 /* ── Progress Bar ── */
 .progress-track {
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: #1C2E4A;
   border-radius: 99px;
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #065f46, #10b981, #fbbf24);
+  background: linear-gradient(90deg, #1B6B4A, #2A8B62);
   border-radius: 99px;
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -174,23 +177,23 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.625rem 1rem;
-  border-radius: 8px;
-  color: rgba(254, 249, 239, 0.65);
-  font-family: 'Crimson Pro', serif;
-  font-size: 1rem;
+  border-radius: 12px;
+  color: #8B9BB4;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-size: 0.95rem;
   transition: all 0.2s ease;
   cursor: pointer;
   border: 1px solid transparent;
 }
 .sidebar-link:hover {
-  background: rgba(245, 158, 11, 0.08);
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(28, 46, 74, 0.5);
+  color: #E8DCC8;
+  border-color: rgba(212, 168, 83, 0.2);
 }
 .sidebar-link.active {
-  background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
-  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(27, 107, 74, 0.2);
+  color: #D4A853;
+  border-color: rgba(27, 107, 74, 0.3);
   font-weight: 600;
 }
 
@@ -217,8 +220,8 @@ body {
   font-weight: 600;
   letter-spacing: 0.03em;
 }
-.badge-gold { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
-.badge-emerald { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.badge-gold { background: rgba(212,168,83,0.18); color: #E8C070; border: 1px solid rgba(212,168,83,0.3); }
+.badge-emerald { background: rgba(27,107,74,0.22); color: #7DC9A4; border: 1px solid rgba(42,139,98,0.32); }
 .badge-red { background: rgba(220,38,38,0.15); color: #f87171; border: 1px solid rgba(220,38,38,0.3); }
 
 /* ── Animations ── */

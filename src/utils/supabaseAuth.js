@@ -163,9 +163,11 @@ export const requestSupabase = async (path, options = {}) => {
 
     return { ok: true, data };
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'The Supabase request could not be completed.';
     return {
       ok: false,
-      message: error instanceof Error ? error.message : 'The Supabase request could not be completed.',
+      message,
+      isNetworkError: true,
     };
   }
 };

@@ -22,10 +22,10 @@ export default function Navbar({ onToggleSidebar }) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center px-4 gap-4"
-      style={{ background: 'rgba(2,15,10,0.95)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(245,158,11,0.15)' }}>
+      style={{ background: 'rgba(10,22,40,0.92)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(28,46,74,0.9)' }}>
 
       <button onClick={onToggleSidebar}
-        className="text-gold-400 hover:text-gold-300 transition-colors p-1 lg:hidden">
+        className="text-slate-muted hover:text-cream transition-colors p-1 lg:hidden">
         <Menu size={22} />
       </button>
 
@@ -40,14 +40,14 @@ export default function Navbar({ onToggleSidebar }) {
       <div className="flex-1" />
 
       <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg"
-        style={{ background: 'rgba(6,78,59,0.2)', border: '1px solid rgba(245,158,11,0.1)' }}>
-        <Search size={14} className="text-gold-500 opacity-60" />
-        <span className="text-xs font-crimson text-emerald-400 opacity-50">Search courses...</span>
+        style={{ background: 'rgba(6,14,26,0.72)', border: '1px solid rgba(28,46,74,0.95)' }}>
+        <Search size={14} className="text-slate-muted" />
+        <span className="text-xs font-crimson text-slate-muted">Search courses...</span>
       </div>
 
-      <button className="relative text-gold-500 opacity-60 hover:opacity-100 transition-opacity">
+      <button className="relative text-slate-muted hover:text-cream transition-colors p-2 rounded-xl hover:bg-navy-border/50">
         <Bell size={18} />
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-gold-500 rounded-full" />
+        <span className="absolute top-1 right-1 w-2 h-2 bg-gold-400 rounded-full" />
       </button>
 
       <div className="hidden md:flex flex-col items-end min-w-0">
@@ -70,15 +70,15 @@ export default function Navbar({ onToggleSidebar }) {
             <input
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
-              className="text-xs px-2 py-1 rounded font-crimson text-cream bg-emerald-900 border border-gold-600 outline-none w-32"
+              className="text-xs px-2 py-1 rounded-lg font-crimson text-cream bg-navy-dark border border-navy-border outline-none w-32 focus:border-green/60"
             />
             <button type="submit" className="text-xs btn-gold px-2 py-1">Save</button>
           </form>
         ) : (
           <button onClick={() => setNameEdit(true)}
             className="flex items-center gap-1.5 text-cream opacity-80 hover:opacity-100 text-sm font-crimson">
-            <div className="w-7 h-7 rounded-full bg-emerald-800 flex items-center justify-center border border-gold-600">
-              <User size={13} className="text-gold-400" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green to-gold flex items-center justify-center">
+              <User size={13} className="text-navy" />
             </div>
         <span className="hidden sm:block max-w-[120px] md:max-w-[140px] truncate">{studentName}</span>
       </button>
@@ -86,7 +86,7 @@ export default function Navbar({ onToggleSidebar }) {
       </div>
 
       <button type="button" onClick={logout}
-        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-cinzel text-gold-300 border border-gold-700/30 hover:bg-gold-900/20 transition-colors">
+        className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-crimson font-semibold text-cream-muted border border-navy-border hover:border-gold-400/40 hover:text-cream transition-colors">
         <LogOut size={14} />
         <span className="hidden sm:inline">Logout</span>
       </button>

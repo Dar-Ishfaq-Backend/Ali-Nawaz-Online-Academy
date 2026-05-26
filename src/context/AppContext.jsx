@@ -95,6 +95,13 @@ const decorateUsersWithLocalStats = (users = []) => sortUsers(users.map((user) =
   ...getUserLearningStats(user.id),
 })));
 
+const isSupabaseNetworkFailure = (result) => (
+  result?.isNetworkError
+  || result?.message === 'Failed to fetch'
+  || result?.message?.includes('Could not resolve host')
+  || result?.message?.includes('NetworkError')
+);
+
 export function AppProvider({ children }) {
   const supabaseEnabled = isSupabaseEnabled();
   const [state, setState] = useState(getSnapshot);
@@ -256,6 +263,22 @@ export function AppProvider({ children }) {
       const supabaseResult = await signInWithSupabase(email, password);
 
       if (!supabaseResult.ok) {
+        if (isSupabaseNetworkFailure(supabaseResult)) {
+          const localResult = storageLoginUser(email, password);
+          if (localResult.ok) {
+            refreshState();
+            return {
+              ...localResult,
+              message: 'Signed in locally because Supabase is currently unreachable.',
+            };
+          }
+
+          return {
+            ok: false,
+            message: 'Supabase is currently unreachable. Local sign-in was tried too, but no matching local account was found.',
+          };
+        }
+
         return supabaseResult;
       }
 
@@ -271,13 +294,26 @@ export function AppProvider({ children }) {
     const result = storageLoginUser(email, password);
     if (result.ok) refreshState();
     return result;
-  }, [refreshState, refreshSupabaseUsers, supabaseEnabled]);
+  }, [refreshState, refreshSupabaseCourses, refreshSupabaseUsers, supabaseEnabled]);
 
   const register = useCallback(async (payload) => {
     if (supabaseEnabled) {
       const supabaseResult = await registerWithSupabase(payload);
 
       if (!supabaseResult.ok) {
+        if (isSupabaseNetworkFailure(supabaseResult)) {
+          const localResult = storageRegisterUser(payload);
+          if (localResult.ok) {
+            refreshState();
+            return {
+              ...localResult,
+              message: 'Your student account was created locally because Supabase is currently unreachable.',
+            };
+          }
+
+          return localResult;
+        }
+
         return supabaseResult;
       }
 
@@ -300,7 +336,7 @@ export function AppProvider({ children }) {
     const result = storageRegisterUser(payload);
     if (result.ok) refreshState();
     return result;
-  }, [refreshState, refreshSupabaseUsers, supabaseEnabled]);
+  }, [refreshState, refreshSupabaseCourses, refreshSupabaseUsers, supabaseEnabled]);
 
   const requestPasswordReset = useCallback(async (email) => {
     if (supabaseEnabled) {
